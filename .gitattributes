@@ -1,0 +1,23 @@
+# 自动处理文本文件的行尾，仓库内统一存储为 LF
+* text=auto
+
+# 显式指定常见文本文件（工作区检出时按平台本地行尾）
+*.cs        text diff=csharp
+*.csproj    text
+*.slnx      text
+*.sln       text eol=crlf
+*.json      text
+*.config    text
+*.md        text
+*.http      text
+*.sh        text eol=lf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# 二进制文件不做行尾转换
+*.dll       binary
+*.exe       binary
+*.png       binary
+*.jpg       binary
+*.ico       binary
+*.pdf       binary
