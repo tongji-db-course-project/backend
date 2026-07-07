@@ -1,15 +1,22 @@
+using backend.Data;
+using Microsoft.EntityFrameworkCore;
+using backend; // 按你的命名空间调整
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// 1. 注册 DbContext，连接串从 appsettings.json 读
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseOracle(builder.Configuration.GetConnectionString("OracleDb")));
 
+// 2. 控制器
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+// 3. Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -17,9 +24,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
