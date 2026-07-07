@@ -1,6 +1,6 @@
 using backend.Data;
+using backend.Services;
 using Microsoft.EntityFrameworkCore;
-using backend; // 按你的命名空间调整
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,7 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseOracle(builder.Configuration.GetConnectionString("OracleDb")));
 
-// 2. 控制器
+// 2. 业务服务
+builder.Services.AddScoped<IProductService, ProductService>();
+
+// 3. 控制器
 builder.Services.AddControllers();
 
 // 3. Swagger
