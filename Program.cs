@@ -10,6 +10,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // 2. 业务服务
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IMemberService, MemberService>();
 
 // 3. 控制器
 builder.Services.AddControllers();

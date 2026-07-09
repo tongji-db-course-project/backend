@@ -1,6 +1,8 @@
 .vs/
 bin/
 obj/
+node_modules/
+.idea/
 *.user
 
 appsettings.Development.json
