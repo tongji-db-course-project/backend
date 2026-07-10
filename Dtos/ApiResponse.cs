@@ -13,4 +13,7 @@ public class ApiResponse<T>
 
     public static ApiResponse<T> Ok(T data, string message = "成功")
         => new() { code = 200, message = message, data = data };
+
+    public static ApiResponse<T> Fail(int code, string message)
+        => new() { code = code, message = message, data = default };
 }
