@@ -58,7 +58,19 @@ public partial class SALE_ORDER
     /// </summary>
     public string? STATUS { get; set; }
 
+    /// <summary>
+    /// 订单创建时间
+    /// </summary>
+    public DateTime? CREATE_TIME { get; set; }
+
+    /// <summary>
+    /// 最后状态变更时间
+    /// </summary>
+    public DateTime? UPDATE_TIME { get; set; }
+
     public virtual MEMBER? MEMBER { get; set; }
+
+    public virtual ICollection<MEMBER_COUPON> MEMBER_COUPONs { get; set; } = new List<MEMBER_COUPON>();
 
     public virtual ICollection<POINT_RECORD> POINT_RECORDs { get; set; } = new List<POINT_RECORD>();
 

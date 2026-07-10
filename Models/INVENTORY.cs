@@ -16,6 +16,11 @@ public partial class INVENTORY
     public int PRODUCT_ID { get; set; }
 
     /// <summary>
+    /// 仓库编号，关联仓库表
+    /// </summary>
+    public int WAREHOUSE_ID { get; set; }
+
+    /// <summary>
     /// 当前库存量
     /// </summary>
     public int CURRENT_STOCK { get; set; }
@@ -26,4 +31,6 @@ public partial class INVENTORY
     public DateTime LAST_UPDATE_TIME { get; set; }
 
     public virtual PRODUCT PRODUCT { get; set; } = null!;
+
+    public virtual WAREHOUSE WAREHOUSE { get; set; } = null!;
 }

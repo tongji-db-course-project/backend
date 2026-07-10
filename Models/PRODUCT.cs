@@ -24,6 +24,10 @@ public partial class PRODUCT
 
     public decimal? SALE_PRICE { get; set; }
 
+    public string? IS_PROMOTION { get; set; }
+
+    public decimal? PROMOTION_PRICE { get; set; }
+
     public int? STOCK_WARNING { get; set; }
 
     public string? UNIT { get; set; }
@@ -38,9 +42,15 @@ public partial class PRODUCT
 
     public virtual ICollection<PURCHASE_ORDER_DETAIL> PURCHASE_ORDER_DETAILs { get; set; } = new List<PURCHASE_ORDER_DETAIL>();
 
+    public virtual ICollection<PURCHASE_RETURN_ORDER_DETAIL> PURCHASE_RETURN_ORDER_DETAILs { get; set; } = new List<PURCHASE_RETURN_ORDER_DETAIL>();
+
     public virtual ICollection<RETURN_ORDER_DETAIL> RETURN_ORDER_DETAILs { get; set; } = new List<RETURN_ORDER_DETAIL>();
 
     public virtual ICollection<SALE_ORDER_DETAIL> SALE_ORDER_DETAILs { get; set; } = new List<SALE_ORDER_DETAIL>();
 
+    public virtual ICollection<STOCK_CHECK_DETAIL> STOCK_CHECK_DETAILs { get; set; } = new List<STOCK_CHECK_DETAIL>();
+
     public virtual SUPPLIER SUPPLIER { get; set; } = null!;
+
+    public virtual ICollection<TRANSFER_ORDER_DETAIL> TRANSFER_ORDER_DETAILs { get; set; } = new List<TRANSFER_ORDER_DETAIL>();
 }
