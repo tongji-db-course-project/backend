@@ -110,12 +110,17 @@ public class MembersController : ControllerBase
     /// </summary>
     [HttpGet("{memberId}/orders")]
     [ProducesResponseType(typeof(ApiResponse<PageResult<SaleOrderListItem>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMemberOrders(
         int memberId,
         [FromQuery] int page = 1,
         [FromQuery] int size = 10)
     {
-        var result = await _memberService.GetMemberOrdersAsync(memberId, page, size);
-        return Ok(ApiResponse<PageResult<SaleOrderListItem>>.Ok(result));
+        var (result, memberExists) = await _memberService.GetMemberOrdersAsync(memberId, page, size);
+        
+        if (!memberExists)
+            return NotFound(ApiResponse<string>.Ok("会员不存在", "会员不存在"));
+        
+        return Ok(ApiResponse<PageResult<SaleOrderListItem>>.Ok(result!));
     }
 }

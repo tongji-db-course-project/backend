@@ -20,4 +20,6 @@ public class Member
     public decimal? totalAmount { get; set; }
 
     public DateTime? registerTime { get; set; }
+
+    public string? status { get; set; }
 }

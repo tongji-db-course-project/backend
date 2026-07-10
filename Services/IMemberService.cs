@@ -40,5 +40,5 @@ public interface IMemberService
     /// <summary>
     /// 查询会员消费记录
     /// </summary>
-    Task<PageResult<SaleOrderListItem>> GetMemberOrdersAsync(int memberId, int page, int size);
+    Task<(PageResult<SaleOrderListItem>? Result, bool MemberExists)> GetMemberOrdersAsync(int memberId, int page, int size);
 }

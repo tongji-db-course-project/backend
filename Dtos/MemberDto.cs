@@ -12,4 +12,6 @@ public class MemberDto
     public string? gender { get; set; }
 
     public string? levelName { get; set; }
+
+    public string? status { get; set; }
 }

@@ -33,6 +33,12 @@ public class MemberService : IMemberService
                 (m.PHONE != null && m.PHONE.Contains(kw)));
         }
 
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var st = status.Trim();
+            query = query.Where(m => m.STATUS == st);
+        }
+
         var total = await query.CountAsync();
 
         var items = await query
@@ -59,6 +65,7 @@ public class MemberService : IMemberService
             PHONE = dto.phone,
             GENDER = dto.gender,
             LEVEL_NAME = dto.levelName ?? "普通会员",
+            STATUS = dto.status ?? "启用",
             POINTS = 0,
             TOTAL_AMOUNT = 0,
             CREATE_TIME = DateTime.Now
@@ -99,6 +106,9 @@ public class MemberService : IMemberService
         if (dto.levelName != null)
             member.LEVEL_NAME = dto.levelName;
 
+        if (dto.status != null)
+            member.STATUS = dto.status;
+
         await _db.SaveChangesAsync();
 
         return ToMember(member);
@@ -112,7 +122,7 @@ public class MemberService : IMemberService
         if (member == null)
             return false;
 
-        _db.MEMBERs.Remove(member);
+        member.STATUS = member.STATUS == "启用" ? "禁用" : member.STATUS;
         await _db.SaveChangesAsync();
 
         return true;
@@ -127,11 +137,15 @@ public class MemberService : IMemberService
         return member != null ? ToMember(member) : null;
     }
 
-    public async Task<PageResult<SaleOrderListItem>> GetMemberOrdersAsync(int memberId, int page, int size)
+    public async Task<(PageResult<SaleOrderListItem>? Result, bool MemberExists)> GetMemberOrdersAsync(int memberId, int page, int size)
     {
         if (page < 1) page = 1;
         if (size < 1) size = 10;
         if (size > 100) size = 100;
+
+        var memberExists = await _db.MEMBERs.AnyAsync(m => m.MEMBER_ID == memberId);
+        if (!memberExists)
+            return (null, false);
 
         var query = _db.SALE_ORDERs
             .AsNoTracking()
@@ -157,13 +171,13 @@ public class MemberService : IMemberService
             })
             .ToListAsync();
 
-        return new PageResult<SaleOrderListItem>
+        return (new PageResult<SaleOrderListItem>
         {
             list  = items,
             total = total,
             page  = page,
             size  = size
-        };
+        }, true);
     }
 
     private static Member ToMember(MEMBER member)
@@ -177,7 +191,8 @@ public class MemberService : IMemberService
             levelName    = member.LEVEL_NAME,
             points       = member.POINTS,
             totalAmount  = member.TOTAL_AMOUNT,
-            registerTime = member.CREATE_TIME
+            registerTime = member.CREATE_TIME,
+            status       = member.STATUS
         };
     }
 }
