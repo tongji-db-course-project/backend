@@ -1,0 +1,21 @@
+Program.cs
+  s_b1ec626e758087::t_68b5530036eb5d 86-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ba7d60c22d69be8c5af86d44ddba018ae2bd5dbc",
+  "prompts": {},
+  "sessions": {
+    "s_b1ec626e758087": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d749541d-8e21-44f0-912e-fd94e4835db8",
+        "model": "unknown"
+      },
+      "human_author": "Mingze Li <15610159165lmz@gmail.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
