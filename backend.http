@@ -1,6 +1,47 @@
 @backend_HostAddress = http://localhost:5113
+@token =
 
-GET {{backend_HostAddress}}/weatherforecast/
-Accept: application/json
+### 200 登录成功
+POST {{backend_HostAddress}}/auth/login
+Content-Type: application/json
 
-###
+{
+  "username": "admin",
+  "password": "123456"
+}
+
+### 400 参数错误（缺少 password）
+POST {{backend_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin"
+}
+
+### 401 密码错误
+POST {{backend_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "wrong"
+}
+
+### 401 未登录（不带 Token）
+GET {{backend_HostAddress}}/auth/me
+
+### 401 未登录（Token 无效）
+GET {{backend_HostAddress}}/auth/me
+Authorization: Bearer invalid.token.here
+
+### 200 获取当前用户（需先登录复制 token）
+GET {{backend_HostAddress}}/auth/me
+Authorization: Bearer {{token}}
+
+### 200 可访问菜单
+GET {{backend_HostAddress}}/auth/menus
+Authorization: Bearer {{token}}
+
+### 200 商品列表
+GET {{backend_HostAddress}}/Products?page=1&size=10
+Authorization: Bearer {{token}}
