@@ -25,9 +25,6 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<LoginResponseDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ApiResponse<LoginResponseDto>.Fail(400, "请求参数错误"));
-
         var result = await _authService.LoginAsync(request.username, request.password);
         if (result is null)
             return Unauthorized(ApiResponse<LoginResponseDto>.Fail(401, "用户名或密码错误"));

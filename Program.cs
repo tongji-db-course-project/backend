@@ -34,24 +34,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtSettings.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
         };
-        options.Events = new JwtBearerEvents
-        {
-            OnChallenge = context =>
-            {
-                context.HandleResponse();
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.ContentType = "application/json; charset=utf-8";
-                return context.Response.WriteAsJsonAsync(
-                    ApiResponse<object>.Fail(401, "未登录或登录状态失效"));
-            },
-            OnForbidden = context =>
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                context.Response.ContentType = "application/json; charset=utf-8";
-                return context.Response.WriteAsJsonAsync(
-                    ApiResponse<object>.Fail(403, "无权限访问该资源"));
-            }
-        };
     });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
@@ -101,6 +83,10 @@ app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
     {
+        var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(exception, "未处理异常，路径 {Path}", context.Request.Path);
+
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json; charset=utf-8";
         await context.Response.WriteAsJsonAsync(
