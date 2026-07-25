@@ -42,11 +42,23 @@ public partial class PURCHASE_ORDER
     /// </summary>
     public string? STATUS { get; set; }
 
+    /// <summary>
+    /// 订单创建时间
+    /// </summary>
+    public DateTime? CREATE_TIME { get; set; }
+
+    /// <summary>
+    /// 最后状态变更时间
+    /// </summary>
+    public DateTime? UPDATE_TIME { get; set; }
+
     public virtual SYS_USER? APPLICANT { get; set; }
 
     public virtual SYS_USER? APPROVER { get; set; }
 
     public virtual ICollection<PURCHASE_ORDER_DETAIL> PURCHASE_ORDER_DETAILs { get; set; } = new List<PURCHASE_ORDER_DETAIL>();
+
+    public virtual ICollection<PURCHASE_RETURN_ORDER> PURCHASE_RETURN_ORDERs { get; set; } = new List<PURCHASE_RETURN_ORDER>();
 
     public virtual SUPPLIER? SUPPLIER { get; set; }
 

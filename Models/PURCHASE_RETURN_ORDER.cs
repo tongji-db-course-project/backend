@@ -3,27 +3,30 @@ using System.Collections.Generic;
 
 namespace backend.Models;
 
-public partial class RETURN_ORDER
+/// <summary>
+/// 采购退货单主表：处理向供应商退货的业务单据
+/// </summary>
+public partial class PURCHASE_RETURN_ORDER
 {
     /// <summary>
-    /// 退货单编号
+    /// 采购退货单编号
     /// </summary>
     public int RETURN_ID { get; set; }
 
     /// <summary>
-    /// 退货单号
+    /// 采购退货单号
     /// </summary>
     public string RETURN_NO { get; set; } = null!;
 
     /// <summary>
-    /// 对应销售单编号
+    /// 关联的原采购订单编号
     /// </summary>
-    public int SALE_ID { get; set; }
+    public int PURCHASE_ID { get; set; }
 
     /// <summary>
-    /// 会员编号
+    /// 供应商编号
     /// </summary>
-    public int? MEMBER_ID { get; set; }
+    public int SUPPLIER_ID { get; set; }
 
     /// <summary>
     /// 经办人编号
@@ -33,20 +36,20 @@ public partial class RETURN_ORDER
     /// <summary>
     /// 退货日期
     /// </summary>
-    public DateTime RETURN_DATE { get; set; }
+    public DateTime? RETURN_DATE { get; set; }
 
     /// <summary>
-    /// 退款金额
+    /// 退货总金额
     /// </summary>
-    public decimal REFUND_AMOUNT { get; set; }
+    public decimal TOTAL_AMOUNT { get; set; }
 
     /// <summary>
-    /// 退货状态
+    /// 退货单状态
     /// </summary>
-    public string STATUS { get; set; } = null!;
+    public string? STATUS { get; set; }
 
     /// <summary>
-    /// 订单创建时间
+    /// 创建时间
     /// </summary>
     public DateTime? CREATE_TIME { get; set; }
 
@@ -60,11 +63,11 @@ public partial class RETURN_ORDER
     /// </summary>
     public string? REMARK { get; set; }
 
-    public virtual MEMBER? MEMBER { get; set; }
-
     public virtual SYS_USER OPERATOR { get; set; } = null!;
 
-    public virtual ICollection<RETURN_ORDER_DETAIL> RETURN_ORDER_DETAILs { get; set; } = new List<RETURN_ORDER_DETAIL>();
+    public virtual PURCHASE_ORDER PURCHASE { get; set; } = null!;
 
-    public virtual SALE_ORDER SALE { get; set; } = null!;
+    public virtual ICollection<PURCHASE_RETURN_ORDER_DETAIL> PURCHASE_RETURN_ORDER_DETAILs { get; set; } = new List<PURCHASE_RETURN_ORDER_DETAIL>();
+
+    public virtual SUPPLIER SUPPLIER { get; set; } = null!;
 }

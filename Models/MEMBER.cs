@@ -29,14 +29,26 @@ public partial class MEMBER
     /// </summary>
     public int? POINTS { get; set; }
 
+    /// <summary>
+    /// 会员标签（如&quot;学生&quot;&quot;VIP&quot;等）
+    /// </summary>
+    public string? MEMBER_TAG { get; set; }
+
     public decimal? TOTAL_AMOUNT { get; set; }
 
     /// <summary>
-    /// 会员等级（硬编码文本）
+    /// 会员等级（普通/黄金/钻石，折扣率由后端映射）
     /// </summary>
     public string? LEVEL_NAME { get; set; }
 
+    /// <summary>
+    /// 会员状态
+    /// </summary>
+    public string? STATUS { get; set; }
+
     public DateTime? CREATE_TIME { get; set; }
+
+    public virtual ICollection<MEMBER_COUPON> MEMBER_COUPONs { get; set; } = new List<MEMBER_COUPON>();
 
     public virtual ICollection<POINT_RECORD> POINT_RECORDs { get; set; } = new List<POINT_RECORD>();
 

@@ -33,9 +33,31 @@ public partial class SUPPLIER
     /// </summary>
     public short? PAYMENT_CYCLE { get; set; }
 
+    /// <summary>
+    /// 最小起订量
+    /// </summary>
+    public int? MIN_ORDER_QTY { get; set; }
+
+    /// <summary>
+    /// 开户银行名称
+    /// </summary>
+    public string? BANK_NAME { get; set; }
+
+    /// <summary>
+    /// 银行账号
+    /// </summary>
+    public string? BANK_ACCOUNT { get; set; }
+
+    /// <summary>
+    /// 供应商状态
+    /// </summary>
+    public string? STATUS { get; set; }
+
     public virtual ICollection<PRODUCT> PRODUCTs { get; set; } = new List<PRODUCT>();
 
     public virtual ICollection<PURCHASE_ORDER> PURCHASE_ORDERs { get; set; } = new List<PURCHASE_ORDER>();
+
+    public virtual ICollection<PURCHASE_RETURN_ORDER> PURCHASE_RETURN_ORDERs { get; set; } = new List<PURCHASE_RETURN_ORDER>();
 
     public virtual ICollection<SUPPLIER_SETTLEMENT> SUPPLIER_SETTLEMENTs { get; set; } = new List<SUPPLIER_SETTLEMENT>();
 }

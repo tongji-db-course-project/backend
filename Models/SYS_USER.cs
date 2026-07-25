@@ -59,9 +59,17 @@ public partial class SYS_USER
 
     public virtual ICollection<PURCHASE_ORDER> PURCHASE_ORDERAPPROVERs { get; set; } = new List<PURCHASE_ORDER>();
 
+    public virtual ICollection<PURCHASE_RETURN_ORDER> PURCHASE_RETURN_ORDERs { get; set; } = new List<PURCHASE_RETURN_ORDER>();
+
     public virtual ICollection<RETURN_ORDER> RETURN_ORDERs { get; set; } = new List<RETURN_ORDER>();
 
     public virtual SYS_ROLE? ROLE { get; set; }
 
     public virtual ICollection<SALE_ORDER> SALE_ORDERs { get; set; } = new List<SALE_ORDER>();
+
+    public virtual ICollection<STOCK_CHECK_ORDER> STOCK_CHECK_ORDERs { get; set; } = new List<STOCK_CHECK_ORDER>();
+
+    public virtual ICollection<TRANSFER_ORDER> TRANSFER_ORDERAPPLICANTs { get; set; } = new List<TRANSFER_ORDER>();
+
+    public virtual ICollection<TRANSFER_ORDER> TRANSFER_ORDERAPPROVERs { get; set; } = new List<TRANSFER_ORDER>();
 }
