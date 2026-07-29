@@ -62,6 +62,7 @@ public class UserService : IUserService
             {
                 userId = u.USER_ID,
                 roleId = u.ROLE_ID,
+                roleName = u.ROLE != null ? u.ROLE.ROLE_NAME : null,
                 username = u.USERNAME,
                 realName = u.REAL_NAME,
                 gender = u.GENDER,
@@ -93,13 +94,16 @@ public class UserService : IUserService
 
         await EnsureRoleExistsAsync(request.roleId);
 
-        var nextUserId = await _db.SYS_USERs
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await _db.Database.ExecuteSqlRawAsync("LOCK TABLE SYS_USER IN EXCLUSIVE MODE");
+
+        var nextUserId = (await _db.SYS_USERs
             .Select(u => (int?)u.USER_ID)
-            .MaxAsync() ?? 0;
+            .MaxAsync() ?? 0) + 1;
 
         var user = new SYS_USER
         {
-            USER_ID = nextUserId + 1,
+            USER_ID = nextUserId,
             ROLE_ID = request.roleId,
             USERNAME = username,
             PASSWORD = BCrypt.Net.BCrypt.HashPassword(password),
@@ -112,6 +116,7 @@ public class UserService : IUserService
 
         _db.SYS_USERs.Add(user);
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return await GetUserAsync(user.USER_ID);
     }
@@ -121,7 +126,18 @@ public class UserService : IUserService
         var user = await _db.SYS_USERs
             .AsNoTracking()
             .Where(u => u.USER_ID == userId)
-            .Select(u => ToDetailDto(u))
+            .Select(u => new UserDetailDto
+            {
+                userId = u.USER_ID,
+                roleId = u.ROLE_ID,
+                roleName = u.ROLE != null ? u.ROLE.ROLE_NAME : null,
+                username = u.USERNAME,
+                realName = u.REAL_NAME,
+                gender = u.GENDER,
+                phone = u.PHONE,
+                status = u.STATUS,
+                createTime = u.CREATE_TIME
+            })
             .FirstOrDefaultAsync();
 
         if (user is null)
@@ -211,21 +227,6 @@ public class UserService : IUserService
         {
             throw new ArgumentException("角色不存在");
         }
-    }
-
-    private static UserDetailDto ToDetailDto(SYS_USER user)
-    {
-        return new UserDetailDto
-        {
-            userId = user.USER_ID,
-            roleId = user.ROLE_ID,
-            username = user.USERNAME,
-            realName = user.REAL_NAME,
-            gender = user.GENDER,
-            phone = user.PHONE,
-            status = user.STATUS,
-            createTime = user.CREATE_TIME
-        };
     }
 
     private static string NormalizeRequired(string? value, string errorMessage)
