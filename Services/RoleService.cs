@@ -17,8 +17,7 @@ public class RoleService : IRoleService
     public async Task<PageResult<RoleListItemDto>> ListRolesAsync(
         int page,
         int size,
-        string? keyword,
-        string? status)
+        string? keyword)
     {
         if (page < 1) page = 1;
         if (size < 1) size = 10;
@@ -138,6 +137,11 @@ public class RoleService : IRoleService
             .Distinct()
             .ToList();
 
+        if (menuIds.Any(id => id <= 0))
+        {
+            throw new ArgumentException("菜单编号必须是正整数");
+        }
+
         if (menuIds.Count > 0)
         {
             var existingMenuIds = await _db.SYS_MENUs
@@ -152,11 +156,15 @@ public class RoleService : IRoleService
             }
         }
 
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await _db.Database.ExecuteSqlRawAsync("LOCK TABLE SYS_ROLE_MENU IN EXCLUSIVE MODE");
+
         var oldRoleMenus = await _db.SYS_ROLE_MENUs
             .Where(rm => rm.ROLE_ID == roleId)
             .ToListAsync();
 
         _db.SYS_ROLE_MENUs.RemoveRange(oldRoleMenus);
+        await _db.SaveChangesAsync();
 
         var nextRoleMenuId = await _db.SYS_ROLE_MENUs
             .Select(rm => (int?)rm.ROLE_MENU_ID)
@@ -173,6 +181,7 @@ public class RoleService : IRoleService
         }
 
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 
     private static string NormalizeRequired(string? value, string errorMessage)

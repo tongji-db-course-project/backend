@@ -1,9 +1,11 @@
 using backend.Dtos;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
+[Authorize]
 [ApiController]
 public class RolesController : ControllerBase
 {
@@ -19,10 +21,9 @@ public class RolesController : ControllerBase
     public async Task<IActionResult> ListRoles(
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
-        [FromQuery] string? keyword = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? keyword = null)
     {
-        var result = await _roleService.ListRolesAsync(page, size, keyword, status);
+        var result = await _roleService.ListRolesAsync(page, size, keyword);
         return Ok(ApiResponse<PageResult<RoleListItemDto>>.Ok(result));
     }
 

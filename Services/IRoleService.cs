@@ -5,7 +5,7 @@ namespace backend.Services;
 public interface IRoleService
 {
     Task<PageResult<RoleListItemDto>> ListRolesAsync(
-        int page, int size, string? keyword, string? status);
+        int page, int size, string? keyword);
 
     Task<RoleDetailDto> GetRoleAsync(int roleId);
 
