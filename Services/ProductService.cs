@@ -55,21 +55,21 @@ public class ProductService : IProductService
             .Take(size)
             .Select(p => new ProductListItemDto
             {
-                productId     = p.PRODUCT_ID,
-                productName   = p.PRODUCT_NAME,
-                barcode       = p.BARCODE,
+                productId = p.PRODUCT_ID,
+                productName = p.PRODUCT_NAME,
+                barcode = p.BARCODE,
                 specification = p.SPECIFICATION,
                 purchasePrice = p.PURCHASE_PRICE,
-                salePrice     = p.SALE_PRICE,
-                stockWarning  = p.STOCK_WARNING,
-                unit          = p.UNIT,
-                status        = p.STATUS,
-                categoryId    = p.CATEGORY_ID,
-                categoryName  = p.CATEGORY.CATEGORY_NAME,
-                supplierId    = p.SUPPLIER_ID,
-                supplierName  = p.SUPPLIER.SUPPLIER_NAME,
+                salePrice = p.SALE_PRICE,
+                stockWarning = p.STOCK_WARNING,
+                unit = p.UNIT,
+                status = p.STATUS,
+                categoryId = p.CATEGORY_ID,
+                categoryName = p.CATEGORY.CATEGORY_NAME,
+                supplierId = p.SUPPLIER_ID,
+                supplierName = p.SUPPLIER.SUPPLIER_NAME,
                 // 一个商品对应一条库存记录，取其当前库存；无记录时为 0
-                currentStock  = p.INVENTORies
+                currentStock = p.INVENTORies
                                     .Select(i => (int?)i.CURRENT_STOCK)
                                     .FirstOrDefault() ?? 0
             })
@@ -77,10 +77,10 @@ public class ProductService : IProductService
 
         return new PageResult<ProductListItemDto>
         {
-            list  = items,
+            list = items,
             total = total,
-            page  = page,
-            size  = size
+            page = page,
+            size = size
         };
     }
 }

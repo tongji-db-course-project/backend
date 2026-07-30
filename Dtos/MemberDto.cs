@@ -5,9 +5,9 @@ namespace backend.Dtos;
 /// </summary>
 public class MemberDto
 {
-    public string memberName { get; set; } = string.Empty;
+    public string? memberName { get; set; }
 
-    public string phone { get; set; } = string.Empty;
+    public string? phone { get; set; }
 
     public string? gender { get; set; }
 

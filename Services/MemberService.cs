@@ -2,6 +2,7 @@ using backend.Data;
 using backend.Dtos;
 using backend.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Update;
 
 namespace backend.Services;
 
@@ -10,6 +11,10 @@ namespace backend.Services;
 /// </summary>
 public class MemberService : IMemberService
 {
+    private static readonly HashSet<string> ValidGenders = new(StringComparer.Ordinal) { "男", "女", "未知" };
+    private static readonly HashSet<string> ValidLevels = new(StringComparer.Ordinal) { "普通会员", "黄金会员", "钻石会员" };
+    private static readonly HashSet<string> ValidStatuses = new(StringComparer.Ordinal) { "启用", "禁用" };
+
     private readonly AppDbContext _db;
 
     public MemberService(AppDbContext db)
@@ -50,29 +55,40 @@ public class MemberService : IMemberService
 
         return new PageResult<Member>
         {
-            list  = items,
+            list = items,
             total = total,
-            page  = page,
-            size  = size
+            page = page,
+            size = size
         };
     }
 
     public async Task<Member> CreateMemberAsync(MemberDto dto)
     {
+        var memberName = RequireText(dto.memberName, "会员姓名不能为空");
+        var phone = RequireText(dto.phone, "手机号不能为空");
+        var gender = NormalizeOptional(dto.gender);
+        var levelName = NormalizeOptional(dto.levelName) ?? "普通会员";
+        var status = NormalizeOptional(dto.status) ?? "启用";
+
+        ValidateValue(gender, ValidGenders, "性别只能是男、女或未知");
+        ValidateValue(levelName, ValidLevels, "会员等级只能是普通会员、黄金会员或钻石会员");
+        ValidateValue(status, ValidStatuses, "会员状态只能是启用或禁用");
+        await EnsurePhoneUniqueAsync(phone);
+
         var member = new MEMBER
         {
-            MEMBER_NAME = dto.memberName,
-            PHONE = dto.phone,
-            GENDER = dto.gender,
-            LEVEL_NAME = dto.levelName ?? "普通会员",
-            STATUS = dto.status ?? "启用",
+            MEMBER_NAME = memberName,
+            PHONE = phone,
+            GENDER = gender,
+            LEVEL_NAME = levelName,
+            STATUS = status,
             POINTS = 0,
             TOTAL_AMOUNT = 0,
             CREATE_TIME = DateTime.Now
         };
 
         _db.MEMBERs.Add(member);
-        await _db.SaveChangesAsync();
+        await SaveChangesAsync();
 
         return ToMember(member);
     }
@@ -94,22 +110,38 @@ public class MemberService : IMemberService
         if (member == null)
             return null;
 
-        if (!string.IsNullOrWhiteSpace(dto.memberName))
-            member.MEMBER_NAME = dto.memberName;
+        if (dto.memberName != null)
+            member.MEMBER_NAME = RequireText(dto.memberName, "会员姓名不能为空");
 
-        if (!string.IsNullOrWhiteSpace(dto.phone))
-            member.PHONE = dto.phone;
+        if (dto.phone != null)
+        {
+            var phone = RequireText(dto.phone, "手机号不能为空");
+            await EnsurePhoneUniqueAsync(phone, memberId);
+            member.PHONE = phone;
+        }
 
         if (dto.gender != null)
-            member.GENDER = dto.gender;
+        {
+            var gender = NormalizeOptional(dto.gender);
+            ValidateValue(gender, ValidGenders, "性别只能是男、女或未知");
+            member.GENDER = gender;
+        }
 
         if (dto.levelName != null)
-            member.LEVEL_NAME = dto.levelName;
+        {
+            var levelName = RequireText(dto.levelName, "会员等级不能为空");
+            ValidateValue(levelName, ValidLevels, "会员等级只能是普通会员、黄金会员或钻石会员");
+            member.LEVEL_NAME = levelName;
+        }
 
         if (dto.status != null)
-            member.STATUS = dto.status;
+        {
+            var status = RequireText(dto.status, "会员状态不能为空");
+            ValidateValue(status, ValidStatuses, "会员状态只能是启用或禁用");
+            member.STATUS = status;
+        }
 
-        await _db.SaveChangesAsync();
+        await SaveChangesAsync();
 
         return ToMember(member);
     }
@@ -160,39 +192,85 @@ public class MemberService : IMemberService
             .Take(size)
             .Select(o => new SaleOrderListItem
             {
-                saleId         = o.SALE_ID,
-                saleNo         = o.SALE_NO,
-                saleDate       = o.SALE_DATE,
-                totalAmount    = o.TOTAL_AMOUNT,
+                saleId = o.SALE_ID,
+                saleNo = o.SALE_NO,
+                saleDate = o.SALE_DATE,
+                totalAmount = o.TOTAL_AMOUNT,
                 discountAmount = o.DISCOUNT_AMOUNT,
-                paidAmount     = o.PAID_AMOUNT,
-                payType        = o.PAY_TYPE,
-                status         = o.STATUS
+                paidAmount = o.PAID_AMOUNT,
+                payType = o.PAY_TYPE,
+                status = o.STATUS
             })
             .ToListAsync();
 
         return (new PageResult<SaleOrderListItem>
         {
-            list  = items,
+            list = items,
             total = total,
-            page  = page,
-            size  = size
+            page = page,
+            size = size
         }, true);
+    }
+
+    private async Task EnsurePhoneUniqueAsync(string phone, int? excludeMemberId = null)
+    {
+        var exists = await _db.MEMBERs
+            .AsNoTracking()
+            .AnyAsync(m => m.PHONE == phone && (!excludeMemberId.HasValue || m.MEMBER_ID != excludeMemberId.Value));
+
+        if (exists)
+            throw new BusinessException(400, "手机号已存在");
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            throw new BusinessException(400, "会员信息不符合业务规则");
+        }
+    }
+
+    private static string RequireText(string? value, string message)
+    {
+        var text = NormalizeOptional(value);
+        if (text == null)
+            throw new BusinessException(400, message);
+
+        return text;
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        if (value == null)
+            return null;
+
+        var text = value.Trim();
+        return text.Length == 0 ? null : text;
+    }
+
+    private static void ValidateValue(string? value, HashSet<string> allowedValues, string message)
+    {
+        if (value != null && !allowedValues.Contains(value))
+            throw new BusinessException(400, message);
     }
 
     private static Member ToMember(MEMBER member)
     {
         return new Member
         {
-            memberId     = member.MEMBER_ID,
-            memberName   = member.MEMBER_NAME,
-            phone        = member.PHONE,
-            gender       = member.GENDER,
-            levelName    = member.LEVEL_NAME,
-            points       = member.POINTS,
-            totalAmount  = member.TOTAL_AMOUNT,
+            memberId = member.MEMBER_ID,
+            memberName = member.MEMBER_NAME,
+            phone = member.PHONE,
+            gender = member.GENDER,
+            levelName = member.LEVEL_NAME,
+            points = member.POINTS,
+            totalAmount = member.TOTAL_AMOUNT,
             registerTime = member.CREATE_TIME,
-            status       = member.STATUS
+            status = member.STATUS
         };
     }
 }

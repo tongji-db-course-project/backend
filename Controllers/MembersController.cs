@@ -37,8 +37,15 @@ public class MembersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<Member>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateMember([FromBody] MemberDto dto)
     {
-        var result = await _memberService.CreateMemberAsync(dto);
-        return Ok(ApiResponse<Member>.Ok(result));
+        try
+        {
+            var result = await _memberService.CreateMemberAsync(dto);
+            return Ok(ApiResponse<Member>.Ok(result));
+        }
+        catch (BusinessException ex)
+        {
+            return BadRequest(ApiResponse<string>.Fail(ex.Code, ex.Message));
+        }
     }
 
     /// <summary>
@@ -52,7 +59,7 @@ public class MembersController : ControllerBase
         var result = await _memberService.GetMemberByIdAsync(memberId);
 
         if (result == null)
-            return NotFound(ApiResponse<string>.Ok("会员不存在", "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
 
         return Ok(ApiResponse<Member>.Ok(result));
     }
@@ -65,12 +72,19 @@ public class MembersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateMember(int memberId, [FromBody] MemberDto dto)
     {
-        var result = await _memberService.UpdateMemberAsync(memberId, dto);
+        try
+        {
+            var result = await _memberService.UpdateMemberAsync(memberId, dto);
 
-        if (result == null)
-            return NotFound(ApiResponse<string>.Ok("会员不存在", "会员不存在"));
+            if (result == null)
+                return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
 
-        return Ok(ApiResponse<Member>.Ok(result));
+            return Ok(ApiResponse<Member>.Ok(result));
+        }
+        catch (BusinessException ex)
+        {
+            return BadRequest(ApiResponse<string>.Fail(ex.Code, ex.Message));
+        }
     }
 
     /// <summary>
@@ -84,7 +98,7 @@ public class MembersController : ControllerBase
         var success = await _memberService.DeleteMemberAsync(memberId);
 
         if (!success)
-            return NotFound(ApiResponse<string>.Ok("会员不存在", "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
 
         return Ok(ApiResponse<string>.Ok("删除成功"));
     }
@@ -100,7 +114,7 @@ public class MembersController : ControllerBase
         var result = await _memberService.GetMemberByPhoneAsync(phone);
 
         if (result == null)
-            return NotFound(ApiResponse<string>.Ok("会员不存在", "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
 
         return Ok(ApiResponse<Member>.Ok(result));
     }
@@ -117,10 +131,10 @@ public class MembersController : ControllerBase
         [FromQuery] int size = 10)
     {
         var (result, memberExists) = await _memberService.GetMemberOrdersAsync(memberId, page, size);
-        
+
         if (!memberExists)
-            return NotFound(ApiResponse<string>.Ok("会员不存在", "会员不存在"));
-        
+            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
+
         return Ok(ApiResponse<PageResult<SaleOrderListItem>>.Ok(result!));
     }
 }
