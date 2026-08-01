@@ -166,15 +166,10 @@ public class RoleService : IRoleService
         _db.SYS_ROLE_MENUs.RemoveRange(oldRoleMenus);
         await _db.SaveChangesAsync();
 
-        var nextRoleMenuId = await _db.SYS_ROLE_MENUs
-            .Select(rm => (int?)rm.ROLE_MENU_ID)
-            .MaxAsync() ?? 0;
-
         foreach (var menuId in menuIds)
         {
             _db.SYS_ROLE_MENUs.Add(new SYS_ROLE_MENU
             {
-                ROLE_MENU_ID = ++nextRoleMenuId,
                 ROLE_ID = roleId,
                 MENU_ID = menuId
             });

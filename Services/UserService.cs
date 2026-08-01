@@ -87,23 +87,18 @@ public class UserService : IUserService
         var password = NormalizeRequired(request.password, "密码不能为空");
         var status = NormalizeStatus(request.status);
 
-        if (await _db.SYS_USERs.AnyAsync(u => u.USERNAME == username))
-        {
-            throw new InvalidOperationException("用户名已存在");
-        }
-
         await EnsureRoleExistsAsync(request.roleId);
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
         await _db.Database.ExecuteSqlRawAsync("LOCK TABLE SYS_USER IN EXCLUSIVE MODE");
 
-        var nextUserId = (await _db.SYS_USERs
-            .Select(u => (int?)u.USER_ID)
-            .MaxAsync() ?? 0) + 1;
+        if (await _db.SYS_USERs.AnyAsync(u => u.USERNAME == username))
+        {
+            throw new InvalidOperationException("用户名已存在");
+        }
 
         var user = new SYS_USER
         {
-            USER_ID = nextUserId,
             ROLE_ID = request.roleId,
             USERNAME = username,
             PASSWORD = BCrypt.Net.BCrypt.HashPassword(password),
@@ -162,7 +157,10 @@ public class UserService : IUserService
         user.REAL_NAME = NormalizeNullable(request.realName);
         user.GENDER = NormalizeNullable(request.gender);
         user.PHONE = NormalizeNullable(request.phone);
-        user.STATUS = NormalizeStatus(request.status);
+        if (request.status is not null)
+        {
+            user.STATUS = NormalizeStatus(request.status);
+        }
 
         await _db.SaveChangesAsync();
         return await GetUserAsync(userId);

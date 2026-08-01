@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[Authorize]
+[Authorize(Roles = "1")]
 [ApiController]
 public class RolesController : ControllerBase
 {

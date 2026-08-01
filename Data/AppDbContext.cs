@@ -1212,7 +1212,7 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => new { e.ROLE_ID, e.MENU_ID }, "UK_ROLE_MENU").IsUnique();
 
             entity.Property(e => e.ROLE_MENU_ID)
-                .ValueGeneratedNever()
+                .ValueGeneratedOnAdd()
                 .HasPrecision(10);
             entity.Property(e => e.MENU_ID).HasPrecision(10);
             entity.Property(e => e.ROLE_ID).HasPrecision(10);
@@ -1237,7 +1237,7 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.USERNAME, "SYS_C008773").IsUnique();
 
             entity.Property(e => e.USER_ID)
-                .ValueGeneratedNever()
+                .ValueGeneratedOnAdd()
                 .HasPrecision(10)
                 .HasComment("用户编号");
             entity.Property(e => e.CREATE_TIME)
