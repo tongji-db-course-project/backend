@@ -1211,13 +1211,11 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => new { e.ROLE_ID, e.MENU_ID }, "UK_ROLE_MENU").IsUnique();
 
-            entity.Property(e => e.ROLE_MENU_ID).HasPrecision(10);
+            entity.Property(e => e.ROLE_MENU_ID)
+                .ValueGeneratedOnAdd()
+                .HasPrecision(10);
             entity.Property(e => e.MENU_ID).HasPrecision(10);
             entity.Property(e => e.ROLE_ID).HasPrecision(10);
-            entity.Property(e => e.STATUS)
-                .HasMaxLength(20)
-                .IsUnicode(false)
-                .HasDefaultValueSql("'启用'");
 
             entity.HasOne(d => d.MENU).WithMany(p => p.SYS_ROLE_MENUs)
                 .HasForeignKey(d => d.MENU_ID)
@@ -1239,6 +1237,7 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.USERNAME, "SYS_C008773").IsUnique();
 
             entity.Property(e => e.USER_ID)
+                .ValueGeneratedOnAdd()
                 .HasPrecision(10)
                 .HasComment("用户编号");
             entity.Property(e => e.CREATE_TIME)

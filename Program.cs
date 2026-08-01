@@ -41,6 +41,9 @@ builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthoriz
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IMenuService, MenuService>();
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
