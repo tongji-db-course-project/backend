@@ -44,6 +44,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
+builder.Services.AddScoped<ISaleService, SaleService>();
+builder.Services.AddScoped<IPointService, PointService>();
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
