@@ -169,7 +169,7 @@ public class MemberService : IMemberService
         return member != null ? ToMember(member) : null;
     }
 
-    public async Task<(PageResult<SaleOrderListItem>? Result, bool MemberExists)> GetMemberOrdersAsync(int memberId, int page, int size)
+    public async Task<(PageResult<SaleListItemDto>? Result, bool MemberExists)> GetMemberOrdersAsync(int memberId, int page, int size)
     {
         if (page < 1) page = 1;
         if (size < 1) size = 10;
@@ -190,20 +190,24 @@ public class MemberService : IMemberService
             .OrderByDescending(o => o.SALE_DATE)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(o => new SaleOrderListItem
+            .Select(o => new SaleListItemDto
             {
                 saleId = o.SALE_ID,
                 saleNo = o.SALE_NO,
+                memberId = o.MEMBER_ID,
+                memberName = o.MEMBER == null ? null : o.MEMBER.MEMBER_NAME,
+                userId = o.USER_ID,
+                cashierName = o.USER.REAL_NAME,
                 saleDate = o.SALE_DATE,
-                totalAmount = o.TOTAL_AMOUNT,
-                discountAmount = o.DISCOUNT_AMOUNT,
-                paidAmount = o.PAID_AMOUNT,
+                totalAmount = o.TOTAL_AMOUNT ?? 0,
+                discountAmount = o.DISCOUNT_AMOUNT ?? 0,
+                paidAmount = o.PAID_AMOUNT ?? 0,
                 payType = o.PAY_TYPE,
                 status = o.STATUS
             })
             .ToListAsync();
 
-        return (new PageResult<SaleOrderListItem>
+        return (new PageResult<SaleListItemDto>
         {
             list = items,
             total = total,

@@ -28,20 +28,15 @@ public class CreateSaleItemRequest
     public int quantity { get; set; }
 }
 
-public class SaleListItemDto
+/// <summary>
+/// 销售订单列表项（含会员/收银员冗余字段），与会员消费记录接口共用
+/// </summary>
+public class SaleListItemDto : SaleOrderListItem
 {
-    public int saleId { get; set; }
-    public string saleNo { get; set; } = string.Empty;
     public int? memberId { get; set; }
     public string? memberName { get; set; }
     public int userId { get; set; }
     public string? cashierName { get; set; }
-    public DateTime? saleDate { get; set; }
-    public decimal totalAmount { get; set; }
-    public decimal discountAmount { get; set; }
-    public decimal paidAmount { get; set; }
-    public string? payType { get; set; }
-    public string? status { get; set; }
 }
 
 public class SaleDetailDto : SaleListItemDto

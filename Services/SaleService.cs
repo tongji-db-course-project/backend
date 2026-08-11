@@ -87,22 +87,29 @@ public class SaleService : ISaleService
         var quantities = request.items.GroupBy(x => x.productId).ToDictionary(x => x.Key, x => x.Sum(i => i.quantity));
         if (quantities.Any(x => x.Key <= 0 || x.Value <= 0)) throw new ArgumentException("商品和数量必须大于 0");
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var warehouseExists = await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == request.warehouseId);
+        if (!warehouseExists) throw new KeyNotFoundException("仓库不存在");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         var now = DateTime.Now;
 
-        // 种子数据显式指定了主键，但 Oracle Identity 未同步。
-        // 在本模块事务内显式分配主键，避免生成值与已有测试数据冲突。
-        var nextSaleId = (await _db.SALE_ORDERs.MaxAsync(x => (int?)x.SALE_ID) ?? 0) + 1;
-        var nextSaleDetailId = (await _db.SALE_ORDER_DETAILs.MaxAsync(x => (int?)x.SALE_DETAIL_ID) ?? 0) + 1;
-        var nextInventoryRecordId = (await _db.INVENTORY_RECORDs.MaxAsync(x => (int?)x.RECORD_ID) ?? 0) + 1;
-        var nextPointRecordId = (await _db.POINT_RECORDs.MaxAsync(x => (int?)x.POINT_RECORD_ID) ?? 0) + 1;
-
+        // 主键由数据库 Identity 生成（见 AppDbContext.IdentityOverrides.cs），不再手工分配，避免并发下主键冲突。
         var products = await _db.PRODUCTs.Where(x => quantities.Keys.Contains(x.PRODUCT_ID)).ToListAsync();
         if (products.Count != quantities.Count) throw new KeyNotFoundException("部分商品不存在");
         if (products.Any(x => x.STATUS != "在售")) throw new InvalidOperationException("订单包含非在售商品");
 
+        // FOR UPDATE 行锁：串行化对同一库存行的并发扣减，避免超卖。
+        // 注意：FromSqlRaw 会被 EF 包成 FROM ( ... ) b 子查询，Oracle 不允许子查询里用 FOR UPDATE，
+        // 因此用 ExecuteSqlRawAsync 直接下发锁语句（非查询 SQL 不被包装）。
+        // productIds 排序保证多个并发销售按一致顺序加锁，避免死锁；
+        // inList 只由校验过的整数拼接而成，无注入风险；warehouseId 走参数化占位符。
+        var productIds = quantities.Keys.OrderBy(x => x).ToList();
+        var inList = string.Join(",", productIds);
+        var lockSql = "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE";
+        await _db.Database.ExecuteSqlRawAsync(lockSql, request.warehouseId);
         var inventories = await _db.INVENTORies
-            .Where(x => x.WAREHOUSE_ID == request.warehouseId && quantities.Keys.Contains(x.PRODUCT_ID)).ToListAsync();
+            .Where(x => x.WAREHOUSE_ID == request.warehouseId && quantities.Keys.Contains(x.PRODUCT_ID))
+            .ToListAsync();
         if (inventories.Count != quantities.Count) throw new InvalidOperationException("部分商品在指定仓库没有库存记录");
         foreach (var inventory in inventories)
             if (inventory.CURRENT_STOCK < quantities[inventory.PRODUCT_ID])
@@ -112,6 +119,8 @@ public class SaleService : ISaleService
         POINT_CONFIG? config = null;
         if (request.memberId.HasValue)
         {
+            // FOR UPDATE 行锁：串行化对同一会员积分余额的并发变动（抵现 + 获赠），避免余额判断与写入竞争。
+            await _db.Database.ExecuteSqlRawAsync("SELECT * FROM MEMBER WHERE MEMBER_ID = {0} FOR UPDATE", request.memberId.Value);
             member = await _db.MEMBERs.FirstOrDefaultAsync(x => x.MEMBER_ID == request.memberId.Value)
                 ?? throw new KeyNotFoundException("会员不存在");
             if (member.STATUS != "启用") throw new InvalidOperationException("会员状态不可用");
@@ -136,7 +145,6 @@ public class SaleService : ISaleService
 
         var order = new SALE_ORDER
         {
-            SALE_ID = nextSaleId,
             SALE_NO = $"SO{now:yyyyMMddHHmmssfff}{Guid.NewGuid():N}"[..30],
             MEMBER_ID = request.memberId,
             USER_ID = userId,
@@ -152,7 +160,6 @@ public class SaleService : ISaleService
         foreach (var product in products)
             order.SALE_ORDER_DETAILs.Add(new SALE_ORDER_DETAIL
             {
-                SALE_DETAIL_ID = nextSaleDetailId++,
                 PRODUCT_ID = product.PRODUCT_ID,
                 SALE_QUANTITY = quantities[product.PRODUCT_ID],
                 SALE_PRICE = Price(product)
@@ -166,7 +173,6 @@ public class SaleService : ISaleService
             inventory.LAST_UPDATE_TIME = now;
             _db.INVENTORY_RECORDs.Add(new INVENTORY_RECORD
             {
-                RECORD_ID = nextInventoryRecordId++,
                 PRODUCT_ID = inventory.PRODUCT_ID,
                 RECORD_TYPE = "销售",
                 SOURCE_NO = order.SALE_NO,
@@ -186,7 +192,6 @@ public class SaleService : ISaleService
                 remain -= request.redeemPoints;
                 order.POINT_RECORDs.Add(new POINT_RECORD
                 {
-                    POINT_RECORD_ID = nextPointRecordId++,
                     MEMBER_ID = member.MEMBER_ID,
                     CHANGE_TYPE = "抵现",
                     CHANGE_POINTS = -request.redeemPoints,
@@ -201,7 +206,6 @@ public class SaleService : ISaleService
                 remain += earned;
                 order.POINT_RECORDs.Add(new POINT_RECORD
                 {
-                    POINT_RECORD_ID = nextPointRecordId++,
                     MEMBER_ID = member.MEMBER_ID,
                     CHANGE_TYPE = "增加",
                     CHANGE_POINTS = earned,

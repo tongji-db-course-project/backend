@@ -52,8 +52,12 @@ public class PointService : IPointService
         if (request.changePoints == 0) throw new ArgumentException("积分变动值不能为 0");
         if (string.IsNullOrWhiteSpace(request.remark)) throw new ArgumentException("调整原因不能为空");
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-        var nextPointRecordId = (await _db.POINT_RECORDs.MaxAsync(x => (int?)x.POINT_RECORD_ID) ?? 0) + 1;
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        // FOR UPDATE 行锁：串行化对同一会员积分余额的并发调整，避免余额判断与写入竞争。
+        // 注意：FromSqlRaw 会被 EF 包成 FROM ( ... ) b 子查询，Oracle 不允许子查询里用 FOR UPDATE，
+        // 因此用 ExecuteSqlRawAsync 直接下发锁语句（非查询 SQL 不被包装）。
+        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM MEMBER WHERE MEMBER_ID = {0} FOR UPDATE", memberId);
+        // 主键 POINT_RECORD_ID 由数据库 Identity 生成（见 AppDbContext.IdentityOverrides.cs），不再手工分配。
         var member = await _db.MEMBERs.FirstOrDefaultAsync(x => x.MEMBER_ID == memberId)
             ?? throw new KeyNotFoundException("会员不存在");
         if (member.STATUS != "启用") throw new InvalidOperationException("会员状态不可用");
@@ -62,7 +66,6 @@ public class PointService : IPointService
         member.POINTS = remain;
         _db.POINT_RECORDs.Add(new POINT_RECORD
         {
-            POINT_RECORD_ID = nextPointRecordId,
             MEMBER_ID = memberId,
             CHANGE_TYPE = request.changePoints > 0 ? "增加" : "扣减",
             CHANGE_POINTS = request.changePoints,
