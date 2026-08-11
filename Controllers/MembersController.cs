@@ -123,7 +123,7 @@ public class MembersController : ControllerBase
     /// 查询会员消费记录
     /// </summary>
     [HttpGet("{memberId}/orders")]
-    [ProducesResponseType(typeof(ApiResponse<PageResult<SaleOrderListItem>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PageResult<SaleListItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMemberOrders(
         int memberId,
@@ -135,6 +135,6 @@ public class MembersController : ControllerBase
         if (!memberExists)
             return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
 
-        return Ok(ApiResponse<PageResult<SaleOrderListItem>>.Ok(result!));
+        return Ok(ApiResponse<PageResult<SaleListItemDto>>.Ok(result!));
     }
 }
