@@ -31,6 +31,10 @@ public class ProductListItemDto
 
     public string? supplierName { get; set; }
 
+    public string? isPromotion { get; set; }
+
+    public decimal? promotionPrice { get; set; }
+
     /// <summary>当前库存量（无库存记录时为 0）</summary>
     public int currentStock { get; set; }
 }

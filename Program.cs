@@ -49,6 +49,10 @@ builder.Services.AddScoped<IPointService, PointService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         // 参数校验失败时返回 Apifox 统一格式，而不是 ASP.NET 默认的 errors/title
