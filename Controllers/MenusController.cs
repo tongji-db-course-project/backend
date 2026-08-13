@@ -16,7 +16,7 @@ public class MenusController : ControllerBase
         _menuService = menuService;
     }
 
-    [HttpGet("/menus", Name = "listMenus")]
+    [HttpGet("/api/menus", Name = "listMenus")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<MenuListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListMenus()
     {
