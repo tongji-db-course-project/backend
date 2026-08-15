@@ -8,13 +8,13 @@ using Microsoft.EntityFrameworkCore;
 namespace backend.Controllers;
 
 [ApiController]
-[Route("categories")]
+[Route("warehouses")]
 [Authorize]
-public class CategoriesController : ControllerBase
+public class WarehousesController : ControllerBase
 {
     private readonly AppDbContext _db;
 
-    public CategoriesController(AppDbContext db)
+    public WarehousesController(AppDbContext db)
     {
         _db = db;
     }
@@ -22,7 +22,7 @@ public class CategoriesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List()
     {
-        var items = await _db.PRODUCT_CATEGORies.AsNoTracking().OrderBy(c => c.CATEGORY_ID).ToListAsync();
-        return Ok(ApiResponse<IEnumerable<PRODUCT_CATEGORY>>.Ok(items));
+        var items = await _db.WAREHOUSEs.AsNoTracking().OrderBy(w => w.WAREHOUSE_ID).ToListAsync();
+        return Ok(ApiResponse<IEnumerable<WAREHOUSE>>.Ok(items));
     }
 }

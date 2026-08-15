@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[Authorize, ApiController, Route("api/sales")]
+[Authorize, ApiController, Route("sales")]
 public class SalesController : ControllerBase
 {
     private readonly ISaleService _service;

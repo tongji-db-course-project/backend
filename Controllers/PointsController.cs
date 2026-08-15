@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[Authorize, ApiController, Route("api/points")]
+[Authorize, ApiController, Route("points")]
 public class PointsController : ControllerBase
 {
     private readonly IPointService _service;
@@ -18,14 +18,14 @@ public class PointsController : ControllerBase
         catch (ArgumentException ex) { return Error(ex); }
     }
 
-    [HttpGet("~/api/members/{memberId:int}/points")]
+    [HttpGet("~/members/{memberId:int}/points")]
     public async Task<IActionResult> GetMemberPoints(int memberId, int page = 1, int size = 10)
     {
         try { return Ok(ApiResponse<MemberPointsDto>.Ok(await _service.GetMemberPointsAsync(memberId, page, size))); }
         catch (KeyNotFoundException ex) { return Error(ex); }
     }
 
-    [HttpPost("~/api/members/{memberId:int}/points")]
+    [HttpPost("~/members/{memberId:int}/points")]
     public async Task<IActionResult> Adjust(int memberId, [FromBody] AdjustPointsRequest request)
     {
         try { return Ok(ApiResponse<MemberPointsDto>.Ok(await _service.AdjustAsync(memberId, request), "积分调整成功")); }

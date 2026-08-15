@@ -9,7 +9,7 @@ namespace backend.Controllers;
 /// 统计分析控制器
 /// </summary>
 [ApiController]
-[Route("api/statistics")]
+[Route("statistics")]
 [AllowAnonymous]
 public class StatisticsController : ControllerBase
 {

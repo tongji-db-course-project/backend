@@ -1,52 +1,40 @@
-using System.Text.Json.Serialization;
-
 namespace backend.Dtos;
 
 /// <summary>
-/// 商品列表项：商品基础信息、分类与供应商名称、所有仓库库存总量。
+/// 商品列表项：商品基础信息 + 类别/供应商名称 + 当前库存
 /// </summary>
 public class ProductListItemDto
 {
-    [JsonPropertyName("productId")]
-    public int ProductId { get; set; }
+    public int productId { get; set; }
 
-    [JsonPropertyName("productName")]
-    public string ProductName { get; set; } = string.Empty;
+    public string productName { get; set; } = string.Empty;
 
-    [JsonPropertyName("barcode")]
-    public string? Barcode { get; set; }
+    public string? barcode { get; set; }
 
-    [JsonPropertyName("specification")]
-    public string? Specification { get; set; }
+    public string? specification { get; set; }
 
-    [JsonPropertyName("purchasePrice")]
-    public decimal? PurchasePrice { get; set; }
+    public decimal? purchasePrice { get; set; }
 
-    [JsonPropertyName("salePrice")]
-    public decimal? SalePrice { get; set; }
+    public decimal? salePrice { get; set; }
 
-    [JsonPropertyName("stockWarning")]
-    public int? StockWarning { get; set; }
+    public int? stockWarning { get; set; }
 
-    [JsonPropertyName("unit")]
-    public string? Unit { get; set; }
+    public string? unit { get; set; }
 
-    [JsonPropertyName("status")]
-    public string? Status { get; set; }
+    public string? status { get; set; }
 
-    [JsonPropertyName("categoryId")]
-    public int CategoryId { get; set; }
+    public int categoryId { get; set; }
 
-    [JsonPropertyName("categoryName")]
-    public string? CategoryName { get; set; }
+    public string? categoryName { get; set; }
 
-    [JsonPropertyName("supplierId")]
-    public int SupplierId { get; set; }
+    public int supplierId { get; set; }
 
-    [JsonPropertyName("supplierName")]
-    public string? SupplierName { get; set; }
+    public string? supplierName { get; set; }
 
-    /// <summary>所有仓库的当前库存合计，无库存记录时为 0。</summary>
-    [JsonPropertyName("currentStock")]
-    public int CurrentStock { get; set; }
+    public string? isPromotion { get; set; }
+
+    public decimal? promotionPrice { get; set; }
+
+    /// <summary>当前库存量（无库存记录时为 0）</summary>
+    public int currentStock { get; set; }
 }

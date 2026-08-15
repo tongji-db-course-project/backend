@@ -10,7 +10,7 @@
 4. 执行 `dotnet run --launch-profile http`。
 5. 打开 `http://localhost:5113/swagger/index.html`。
 
-本地 API 根地址为 `http://localhost:5113/api`。真实连接串和 JWT 密钥放在已忽略的 `appsettings.Development.json`，不得提交到仓库。
+本地 API 根地址为 `http://localhost:5113`。真实连接串和 JWT 密钥放在已忽略的 `appsettings.Development.json`，不得提交到仓库。
 
 测试账号为 `admin`，密码为 `123456`。
 

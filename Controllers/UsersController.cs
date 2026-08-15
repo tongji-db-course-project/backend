@@ -16,7 +16,7 @@ public class UsersController : ControllerBase
         _userService = userService;
     }
 
-    [HttpGet("/api/users", Name = "listUsers")]
+    [HttpGet("/users", Name = "listUsers")]
     [ProducesResponseType(typeof(ApiResponse<PageResult<UserListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListUsers(
         [FromQuery] int page = 1,
@@ -28,7 +28,7 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<PageResult<UserListItemDto>>.Ok(result));
     }
 
-    [HttpPost("/api/users", Name = "createUser")]
+    [HttpPost("/users", Name = "createUser")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
     {
@@ -43,7 +43,7 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpGet("/api/users/{userId:int}", Name = "getUser")]
+    [HttpGet("/users/{userId:int}", Name = "getUser")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUser([FromRoute] int userId)
     {
@@ -58,7 +58,7 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpPut("/api/users/{userId:int}", Name = "updateUser")]
+    [HttpPut("/users/{userId:int}", Name = "updateUser")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateUser([FromRoute] int userId, [FromBody] UpdateUserRequest request)
     {
@@ -73,7 +73,7 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpPatch("/api/users/{userId:int}/status", Name = "changeUserStatus")]
+    [HttpPatch("/users/{userId:int}/status", Name = "changeUserStatus")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ChangeUserStatus(
         [FromRoute] int userId,
@@ -90,7 +90,7 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpGet("/api/users/{userId:int}/menus", Name = "listUserMenus")]
+    [HttpGet("/users/{userId:int}/menus", Name = "listUserMenus")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<MenuListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListUserMenus([FromRoute] int userId)
     {

@@ -16,7 +16,7 @@ public class RolesController : ControllerBase
         _roleService = roleService;
     }
 
-    [HttpGet("/api/roles", Name = "listRoles")]
+    [HttpGet("/roles", Name = "listRoles")]
     [ProducesResponseType(typeof(ApiResponse<PageResult<RoleListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListRoles(
         [FromQuery] int page = 1,
@@ -27,7 +27,7 @@ public class RolesController : ControllerBase
         return Ok(ApiResponse<PageResult<RoleListItemDto>>.Ok(result));
     }
 
-    [HttpGet("/api/roles/{roleId:int}", Name = "getRole")]
+    [HttpGet("/roles/{roleId:int}", Name = "getRole")]
     [ProducesResponseType(typeof(ApiResponse<RoleDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetRole([FromRoute] int roleId)
     {
@@ -42,7 +42,7 @@ public class RolesController : ControllerBase
         }
     }
 
-    [HttpPut("/api/roles/{roleId:int}", Name = "updateRole")]
+    [HttpPut("/roles/{roleId:int}", Name = "updateRole")]
     [ProducesResponseType(typeof(ApiResponse<RoleDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateRole([FromRoute] int roleId, [FromBody] UpdateRoleRequest request)
     {
@@ -57,7 +57,7 @@ public class RolesController : ControllerBase
         }
     }
 
-    [HttpDelete("/api/roles/{roleId:int}", Name = "deleteRole")]
+    [HttpDelete("/roles/{roleId:int}", Name = "deleteRole")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteRole([FromRoute] int roleId)
     {
@@ -72,7 +72,7 @@ public class RolesController : ControllerBase
         }
     }
 
-    [HttpPut("/api/roles/{roleId:int}/menus", Name = "assignRoleMenus")]
+    [HttpPut("/roles/{roleId:int}/menus", Name = "assignRoleMenus")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> AssignRoleMenus(
         [FromRoute] int roleId,

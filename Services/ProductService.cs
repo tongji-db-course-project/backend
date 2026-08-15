@@ -1,54 +1,15 @@
-using System.Linq.Expressions;
 using backend.Data;
 using backend.Dtos;
 using backend.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Update;
 
 namespace backend.Services;
 
+/// <summary>
+/// 商品业务实现
+/// </summary>
 public class ProductService : IProductService
 {
-    private static readonly HashSet<string> ValidStatuses = new(StringComparer.Ordinal)
-    {
-        "在售",
-        "下架",
-        "停售"
-    };
-
-    private static readonly Expression<Func<PRODUCT, Product>> ProductProjection = product => new Product
-    {
-        ProductId = product.PRODUCT_ID,
-        CategoryId = product.CATEGORY_ID,
-        SupplierId = product.SUPPLIER_ID,
-        ProductName = product.PRODUCT_NAME,
-        Barcode = product.BARCODE,
-        Specification = product.SPECIFICATION,
-        PurchasePrice = product.PURCHASE_PRICE,
-        SalePrice = product.SALE_PRICE,
-        StockWarning = product.STOCK_WARNING,
-        Unit = product.UNIT,
-        Status = product.STATUS
-    };
-
-    private static readonly Expression<Func<PRODUCT, ProductListItemDto>> ProductListProjection = product => new ProductListItemDto
-    {
-        ProductId = product.PRODUCT_ID,
-        ProductName = product.PRODUCT_NAME,
-        Barcode = product.BARCODE,
-        Specification = product.SPECIFICATION,
-        PurchasePrice = product.PURCHASE_PRICE,
-        SalePrice = product.SALE_PRICE,
-        StockWarning = product.STOCK_WARNING,
-        Unit = product.UNIT,
-        Status = product.STATUS,
-        CategoryId = product.CATEGORY_ID,
-        CategoryName = product.CATEGORY.CATEGORY_NAME,
-        SupplierId = product.SUPPLIER_ID,
-        SupplierName = product.SUPPLIER.SUPPLIER_NAME,
-        CurrentStock = product.INVENTORies.Sum(inventory => (int?)inventory.CURRENT_STOCK) ?? 0
-    };
-
     private readonly AppDbContext _db;
 
     public ProductService(AppDbContext db)
@@ -56,203 +17,97 @@ public class ProductService : IProductService
         _db = db;
     }
 
+    /// <summary>
+    /// 构建商品查询的基础查询（Include 导航属性 + 投影到 DTO）
+    /// </summary>
+    private IQueryable<ProductListItemDto> BuildProductQuery()
+    {
+        return _db.PRODUCTs
+            .AsNoTracking()
+            .Include(p => p.CATEGORY)
+            .Include(p => p.SUPPLIER)
+            .Select(p => new ProductListItemDto
+            {
+                productId = p.PRODUCT_ID,
+                productName = p.PRODUCT_NAME,
+                barcode = p.BARCODE,
+                specification = p.SPECIFICATION,
+                purchasePrice = p.PURCHASE_PRICE,
+                salePrice = p.SALE_PRICE,
+                isPromotion = p.IS_PROMOTION,
+                promotionPrice = p.PROMOTION_PRICE,
+                stockWarning = p.STOCK_WARNING,
+                unit = p.UNIT,
+                status = p.STATUS,
+                categoryId = p.CATEGORY_ID,
+                categoryName = p.CATEGORY.CATEGORY_NAME,
+                supplierId = p.SUPPLIER_ID,
+                supplierName = p.SUPPLIER.SUPPLIER_NAME,
+                currentStock = p.INVENTORies
+                                    .Select(i => (int?)i.CURRENT_STOCK)
+                                    .FirstOrDefault() ?? 0
+            });
+    }
+
     public async Task<PageResult<ProductListItemDto>> ListProductsAsync(
         int page, int size, string? keyword, string? status)
     {
-        NormalizePaging(ref page, ref size);
-        var query = ApplyFilters(_db.PRODUCTs.AsNoTracking(), keyword, status);
-        return await ToPageResultAsync(query, page, size);
-    }
+        // 防御性校验
+        if (page < 1) page = 1;
+        if (size < 1) size = 10;
+        if (size > 100) size = 100;
 
-    public async Task<Product> CreateProductAsync(ProductDto dto)
-    {
-        var values = await ValidateDtoAsync(dto);
-
-        var product = new PRODUCT
-        {
-            CATEGORY_ID = values.CategoryId,
-            SUPPLIER_ID = values.SupplierId,
-            PRODUCT_NAME = values.ProductName,
-            BARCODE = values.Barcode,
-            SPECIFICATION = values.Specification,
-            PURCHASE_PRICE = values.PurchasePrice,
-            SALE_PRICE = values.SalePrice,
-            IS_PROMOTION = "否",
-            PROMOTION_PRICE = null,
-            STOCK_WARNING = values.StockWarning,
-            UNIT = values.Unit,
-            STATUS = values.Status
-        };
-
-        _db.PRODUCTs.Add(product);
-        await SaveChangesAsync();
-        return ToDto(product);
-    }
-
-    public async Task<Product?> GetProductAsync(int productId)
-    {
-        return await _db.PRODUCTs
+        var query = _db.PRODUCTs
             .AsNoTracking()
-            .Where(product => product.PRODUCT_ID == productId)
-            .Select(ProductProjection)
-            .FirstOrDefaultAsync();
-    }
+            .Include(p => p.CATEGORY)
+            .Include(p => p.SUPPLIER)
+            .AsQueryable();
 
-    public async Task<Product?> UpdateProductAsync(int productId, ProductDto dto)
-    {
-        var product = await _db.PRODUCTs
-            .FirstOrDefaultAsync(item => item.PRODUCT_ID == productId);
-
-        if (product == null)
-            return null;
-
-        var values = await ValidateDtoAsync(dto, productId, product.STATUS);
-
-        product.CATEGORY_ID = values.CategoryId;
-        product.SUPPLIER_ID = values.SupplierId;
-        product.PRODUCT_NAME = values.ProductName;
-        product.BARCODE = values.Barcode;
-        product.SPECIFICATION = values.Specification;
-        product.PURCHASE_PRICE = values.PurchasePrice;
-        product.SALE_PRICE = values.SalePrice;
-        product.STOCK_WARNING = values.StockWarning;
-        product.UNIT = values.Unit;
-        product.STATUS = values.Status;
-
-        await SaveChangesAsync();
-        return ToDto(product);
-    }
-
-    public async Task<bool> DeleteProductAsync(int productId)
-    {
-        var product = await _db.PRODUCTs
-            .FirstOrDefaultAsync(item => item.PRODUCT_ID == productId);
-
-        if (product == null)
-            return false;
-
-        product.STATUS = "停售";
-        await SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<Product?> GetProductByBarcodeAsync(string barcode)
-    {
-        var normalizedBarcode = NormalizeOptional(barcode);
-        if (normalizedBarcode == null)
-            return null;
-
-        return await _db.PRODUCTs
-            .AsNoTracking()
-            .Where(product => product.BARCODE == normalizedBarcode)
-            .Select(ProductProjection)
-            .FirstOrDefaultAsync();
-    }
-
-    public async Task<PageResult<ProductListItemDto>> ListWarningStockProductsAsync(
-        int page, int size, string? keyword, string? status)
-    {
-        NormalizePaging(ref page, ref size);
-
-        var query = ApplyFilters(_db.PRODUCTs.AsNoTracking(), keyword, status)
-            .Where(product =>
-                product.STOCK_WARNING.HasValue &&
-                (product.INVENTORies.Sum(inventory => (int?)inventory.CURRENT_STOCK) ?? 0) <= product.STOCK_WARNING.Value);
-
-        return await ToPageResultAsync(query, page, size);
-    }
-
-    private async Task<ValidatedProduct> ValidateDtoAsync(
-        ProductDto dto,
-        int? excludeProductId = null,
-        string? currentStatus = null)
-    {
-        var categoryId = RequirePositiveId(dto.CategoryId, "商品分类不能为空");
-        var supplierId = RequirePositiveId(dto.SupplierId, "供应商不能为空");
-        var productName = RequireText(dto.ProductName, "商品名称不能为空");
-        var barcode = RequireText(dto.Barcode, "商品条码不能为空");
-        var specification = NormalizeOptional(dto.Specification);
-        var unit = NormalizeOptional(dto.Unit);
-        var status = NormalizeOptional(dto.Status) ?? currentStatus ?? "在售";
-
-        if (!dto.PurchasePrice.HasValue)
-            throw new BusinessException(400, "采购价格不能为空");
-        if (!dto.SalePrice.HasValue)
-            throw new BusinessException(400, "销售价格不能为空");
-        if (dto.PurchasePrice < 0 || dto.SalePrice < 0)
-            throw new BusinessException(400, "商品价格不能小于0");
-        if (dto.StockWarning < 0)
-            throw new BusinessException(400, "库存预警值不能小于0");
-
-        ValidateLengths(productName, barcode, specification, unit);
-        ValidateStatus(status);
-
-        var categoryExists = await _db.PRODUCT_CATEGORies
-            .AsNoTracking()
-            .AnyAsync(category => category.CATEGORY_ID == categoryId);
-        if (!categoryExists)
-            throw new BusinessException(400, "商品分类不存在");
-
-        var supplierExists = await _db.SUPPLIERs
-            .AsNoTracking()
-            .AnyAsync(supplier => supplier.SUPPLIER_ID == supplierId);
-        if (!supplierExists)
-            throw new BusinessException(400, "供应商不存在");
-
-        var barcodeExists = await _db.PRODUCTs
-            .AsNoTracking()
-            .AnyAsync(product =>
-                product.BARCODE == barcode &&
-                (!excludeProductId.HasValue || product.PRODUCT_ID != excludeProductId.Value));
-        if (barcodeExists)
-            throw new BusinessException(400, "商品条码已存在");
-
-        return new ValidatedProduct(
-            categoryId,
-            supplierId,
-            productName,
-            barcode,
-            specification,
-            dto.PurchasePrice.Value,
-            dto.SalePrice.Value,
-            dto.StockWarning ?? 10,
-            unit,
-            status);
-    }
-
-    private static IQueryable<PRODUCT> ApplyFilters(
-        IQueryable<PRODUCT> query,
-        string? keyword,
-        string? status)
-    {
+        // 关键词：商品名称或条码模糊匹配
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            var normalizedKeyword = keyword.Trim();
-            query = query.Where(product =>
-                product.PRODUCT_NAME.Contains(normalizedKeyword) ||
-                (product.BARCODE != null && product.BARCODE.Contains(normalizedKeyword)));
+            var kw = keyword.Trim();
+            query = query.Where(p =>
+                p.PRODUCT_NAME.Contains(kw) ||
+                (p.BARCODE != null && p.BARCODE.Contains(kw)));
         }
 
+        // 状态精确过滤
         if (!string.IsNullOrWhiteSpace(status))
         {
-            var normalizedStatus = status.Trim();
-            query = query.Where(product => product.STATUS == normalizedStatus);
+            var st = status.Trim();
+            query = query.Where(p => p.STATUS == st);
         }
 
-        return query;
-    }
-
-    private static async Task<PageResult<ProductListItemDto>> ToPageResultAsync(
-        IQueryable<PRODUCT> query,
-        int page,
-        int size)
-    {
+        // 先取总数，再按主键排序分页
         var total = await query.CountAsync();
+
         var items = await query
-            .OrderBy(product => product.PRODUCT_ID)
+            .OrderBy(p => p.PRODUCT_ID)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(ProductListProjection)
+            .Select(p => new ProductListItemDto
+            {
+                productId = p.PRODUCT_ID,
+                productName = p.PRODUCT_NAME,
+                barcode = p.BARCODE,
+                specification = p.SPECIFICATION,
+                purchasePrice = p.PURCHASE_PRICE,
+                salePrice = p.SALE_PRICE,
+                isPromotion = p.IS_PROMOTION,
+                promotionPrice = p.PROMOTION_PRICE,
+                stockWarning = p.STOCK_WARNING,
+                unit = p.UNIT,
+                status = p.STATUS,
+                categoryId = p.CATEGORY_ID,
+                categoryName = p.CATEGORY.CATEGORY_NAME,
+                supplierId = p.SUPPLIER_ID,
+                supplierName = p.SUPPLIER.SUPPLIER_NAME,
+                // 一个商品对应一条库存记录，取其当前库存；无记录时为 0
+                currentStock = p.INVENTORies
+                                    .Select(i => (int?)i.CURRENT_STOCK)
+                                    .FirstOrDefault() ?? 0
+            })
             .ToListAsync();
 
         return new PageResult<ProductListItemDto>
@@ -262,6 +117,210 @@ public class ProductService : IProductService
             page = page,
             size = size
         };
+    }
+
+    public async Task<ProductListItemDto?> GetProductByIdAsync(int productId)
+    {
+        return await BuildProductQuery()
+            .FirstOrDefaultAsync(p => p.productId == productId);
+    }
+
+    public async Task<ProductListItemDto?> GetProductByBarcodeAsync(string barcode)
+    {
+        return await BuildProductQuery()
+            .FirstOrDefaultAsync(p => p.barcode == barcode);
+    }
+
+    public async Task<PageResult<ProductListItemDto>> GetWarningStockProductsAsync(int page, int size)
+    {
+        if (page < 1) page = 1;
+        if (size < 1) size = 10;
+        if (size > 100) size = 100;
+
+        // 查询库存低于预警线的商品：当前库存 <= STOCK_WARNING 且 STOCK_WARNING 不为空
+        var query = _db.PRODUCTs
+            .AsNoTracking()
+            .Include(p => p.CATEGORY)
+            .Include(p => p.SUPPLIER)
+            .Where(p => p.STOCK_WARNING != null)
+            .Select(p => new
+            {
+                Product = p,
+                CurrentStock = p.INVENTORies
+                    .Select(i => (int?)i.CURRENT_STOCK)
+                    .FirstOrDefault() ?? 0
+            })
+            .Where(x => x.CurrentStock <= x.Product.STOCK_WARNING)
+            .Select(x => new ProductListItemDto
+            {
+                productId = x.Product.PRODUCT_ID,
+                productName = x.Product.PRODUCT_NAME,
+                barcode = x.Product.BARCODE,
+                specification = x.Product.SPECIFICATION,
+                purchasePrice = x.Product.PURCHASE_PRICE,
+                salePrice = x.Product.SALE_PRICE,
+                stockWarning = x.Product.STOCK_WARNING,
+                unit = x.Product.UNIT,
+                status = x.Product.STATUS,
+                categoryId = x.Product.CATEGORY_ID,
+                categoryName = x.Product.CATEGORY.CATEGORY_NAME,
+                supplierId = x.Product.SUPPLIER_ID,
+                supplierName = x.Product.SUPPLIER.SUPPLIER_NAME,
+                currentStock = x.CurrentStock
+            });
+
+        var total = await query.CountAsync();
+
+        var items = await query
+            .OrderBy(p => p.currentStock)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync();
+
+        return new PageResult<ProductListItemDto>
+        {
+            list = items,
+            total = total,
+            page = page,
+            size = size
+        };
+    }
+
+    public async Task<ProductListItemDto> CreateProductAsync(ProductDto dto)
+    {
+        var productName = RequireText(dto.productName, "商品名称不能为空");
+
+        // 验证条码唯一性
+        if (!string.IsNullOrWhiteSpace(dto.barcode))
+        {
+            var barcode = dto.barcode.Trim();
+            var exists = await _db.PRODUCTs
+                .AsNoTracking()
+                .AnyAsync(p => p.BARCODE == barcode);
+
+            if (exists)
+                throw new BusinessException(400, "商品条码已存在");
+        }
+
+        // 验证分类和供应商存在
+        await EnsureCategoryExistsAsync(dto.categoryId);
+        await EnsureSupplierExistsAsync(dto.supplierId);
+
+        var product = new PRODUCT
+        {
+            PRODUCT_NAME = productName,
+            CATEGORY_ID = dto.categoryId,
+            SUPPLIER_ID = dto.supplierId,
+            BARCODE = dto.barcode?.Trim(),
+            SPECIFICATION = dto.specification?.Trim(),
+            PURCHASE_PRICE = dto.purchasePrice,
+            SALE_PRICE = dto.salePrice,
+            STOCK_WARNING = dto.stockWarning,
+            UNIT = dto.unit?.Trim(),
+            STATUS = dto.status?.Trim() ?? "在售"
+        };
+
+        _db.PRODUCTs.Add(product);
+        await SaveChangesAsync();
+
+        // 返回新建的完整商品信息
+        return (await GetProductByIdAsync(product.PRODUCT_ID))!;
+    }
+
+    public async Task<ProductListItemDto?> UpdateProductAsync(int productId, ProductDto dto)
+    {
+        var product = await _db.PRODUCTs
+            .FirstOrDefaultAsync(p => p.PRODUCT_ID == productId);
+
+        if (product == null)
+            return null;
+
+        // 更新非空字段
+        if (dto.productName != null)
+            product.PRODUCT_NAME = RequireText(dto.productName, "商品名称不能为空");
+
+        if (dto.categoryId > 0)
+        {
+            await EnsureCategoryExistsAsync(dto.categoryId);
+            product.CATEGORY_ID = dto.categoryId;
+        }
+
+        if (dto.supplierId > 0)
+        {
+            await EnsureSupplierExistsAsync(dto.supplierId);
+            product.SUPPLIER_ID = dto.supplierId;
+        }
+
+        if (dto.barcode != null)
+        {
+            var barcode = dto.barcode.Trim();
+            // 条码唯一性检查（排除自身）
+            var exists = await _db.PRODUCTs
+                .AsNoTracking()
+                .AnyAsync(p => p.BARCODE == barcode && p.PRODUCT_ID != productId);
+
+            if (exists)
+                throw new BusinessException(400, "商品条码已存在");
+
+            product.BARCODE = barcode.Length == 0 ? null : barcode;
+        }
+
+        if (dto.specification != null)
+            product.SPECIFICATION = dto.specification.Trim();
+
+        if (dto.purchasePrice.HasValue)
+            product.PURCHASE_PRICE = dto.purchasePrice;
+
+        if (dto.salePrice.HasValue)
+            product.SALE_PRICE = dto.salePrice;
+
+        if (dto.stockWarning.HasValue)
+            product.STOCK_WARNING = dto.stockWarning;
+
+        if (dto.unit != null)
+            product.UNIT = dto.unit.Trim();
+
+        if (dto.status != null)
+            product.STATUS = dto.status.Trim();
+
+        await SaveChangesAsync();
+
+        return await GetProductByIdAsync(product.PRODUCT_ID);
+    }
+
+    public async Task<bool> DeleteProductAsync(int productId)
+    {
+        var product = await _db.PRODUCTs
+            .FirstOrDefaultAsync(p => p.PRODUCT_ID == productId);
+
+        if (product == null)
+            return false;
+
+        // 逻辑删除：改为「停售」
+        product.STATUS = "停售";
+        await _db.SaveChangesAsync();
+
+        return true;
+    }
+
+    private async Task EnsureCategoryExistsAsync(int categoryId)
+    {
+        var exists = await _db.PRODUCT_CATEGORies
+            .AsNoTracking()
+            .AnyAsync(c => c.CATEGORY_ID == categoryId);
+
+        if (!exists)
+            throw new BusinessException(400, "商品分类不存在");
+    }
+
+    private async Task EnsureSupplierExistsAsync(int supplierId)
+    {
+        var exists = await _db.SUPPLIERs
+            .AsNoTracking()
+            .AnyAsync(s => s.SUPPLIER_ID == supplierId);
+
+        if (!exists)
+            throw new BusinessException(400, "供应商不存在");
     }
 
     private async Task SaveChangesAsync()
@@ -274,54 +333,6 @@ public class ProductService : IProductService
         {
             throw new BusinessException(400, "商品信息不符合业务规则");
         }
-    }
-
-    private static Product ToDto(PRODUCT product)
-    {
-        return new Product
-        {
-            ProductId = product.PRODUCT_ID,
-            CategoryId = product.CATEGORY_ID,
-            SupplierId = product.SUPPLIER_ID,
-            ProductName = product.PRODUCT_NAME,
-            Barcode = product.BARCODE,
-            Specification = product.SPECIFICATION,
-            PurchasePrice = product.PURCHASE_PRICE,
-            SalePrice = product.SALE_PRICE,
-            StockWarning = product.STOCK_WARNING,
-            Unit = product.UNIT,
-            Status = product.STATUS
-        };
-    }
-
-    private static void ValidateLengths(
-        string productName,
-        string barcode,
-        string? specification,
-        string? unit)
-    {
-        if (productName.Length > 100)
-            throw new BusinessException(400, "商品名称不能超过100个字符");
-        if (barcode.Length > 50)
-            throw new BusinessException(400, "商品条码不能超过50个字符");
-        if (specification?.Length > 100)
-            throw new BusinessException(400, "商品规格不能超过100个字符");
-        if (unit?.Length > 20)
-            throw new BusinessException(400, "商品单位不能超过20个字符");
-    }
-
-    private static void ValidateStatus(string status)
-    {
-        if (!ValidStatuses.Contains(status))
-            throw new BusinessException(400, "商品状态只能是在售、下架或停售");
-    }
-
-    private static int RequirePositiveId(int? value, string message)
-    {
-        if (!value.HasValue || value.Value <= 0)
-            throw new BusinessException(400, message);
-
-        return value.Value;
     }
 
     private static string RequireText(string? value, string message)
@@ -341,23 +352,4 @@ public class ProductService : IProductService
         var text = value.Trim();
         return text.Length == 0 ? null : text;
     }
-
-    private static void NormalizePaging(ref int page, ref int size)
-    {
-        if (page < 1) page = 1;
-        if (size < 1) size = 10;
-        if (size > 100) size = 100;
-    }
-
-    private sealed record ValidatedProduct(
-        int CategoryId,
-        int SupplierId,
-        string ProductName,
-        string Barcode,
-        string? Specification,
-        decimal PurchasePrice,
-        decimal SalePrice,
-        int StockWarning,
-        string? Unit,
-        string Status);
 }
