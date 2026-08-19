@@ -40,5 +40,14 @@ public partial class AppDbContext
         modelBuilder.Entity<Models.SYS_ROLE_MENU>()
             .Property(x => x.ROLE_MENU_ID)
             .ValueGeneratedOnAdd();
+
+        // 采购模块（采购单主键自增，详见 database/02_data.sql 末尾的序列同步）
+        modelBuilder.Entity<Models.PURCHASE_ORDER>()
+            .Property(x => x.ORDER_ID)
+            .ValueGeneratedOnAdd();
+
+        modelBuilder.Entity<Models.PURCHASE_ORDER_DETAIL>()
+            .Property(x => x.PURCHASE_DETAIL_ID)
+            .ValueGeneratedOnAdd();
     }
 }
