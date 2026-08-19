@@ -45,3 +45,71 @@ Authorization: Bearer {{token}}
 ### 200 商品列表
 GET {{backend_HostAddress}}/Products?page=1&size=10
 Authorization: Bearer {{token}}
+
+### 200 库存列表
+GET {{backend_HostAddress}}/inventory?page=1&size=10
+Authorization: Bearer {{token}}
+
+### 200 按商品名称或条码查询库存
+GET {{backend_HostAddress}}/inventory?page=1&size=10&keyword=薯片
+Authorization: Bearer {{token}}
+
+### 200 按商品编号查询库存
+GET {{backend_HostAddress}}/inventory/products/1
+Authorization: Bearer {{token}}
+
+### 200 按库存编号查询详情
+GET {{backend_HostAddress}}/inventory/1
+Authorization: Bearer {{token}}
+
+### 200 库存预警列表
+GET {{backend_HostAddress}}/inventory/warning?page=1&size=10
+Authorization: Bearer {{token}}
+
+### 200 库存流水列表
+GET {{backend_HostAddress}}/inventory/records?page=1&size=10
+Authorization: Bearer {{token}}
+
+### 200 按流水类型查询
+GET {{backend_HostAddress}}/inventory/records?page=1&size=10&recordType=销售
+Authorization: Bearer {{token}}
+
+### 200 管理员手动增加库存
+PUT {{backend_HostAddress}}/inventory/adjust
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "changeQty": 10,
+  "recordType": "手动入库",
+  "sourceNo": "MANUAL-TEST-001",
+  "remark": "接口测试增加库存"
+}
+
+### 409 扣减数量超过当前库存
+PUT {{backend_HostAddress}}/inventory/adjust
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "changeQty": -999999,
+  "recordType": "手动出库",
+  "remark": "测试库存不足"
+}
+
+### 400 变动数量不能为 0
+PUT {{backend_HostAddress}}/inventory/adjust
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "changeQty": 0,
+  "recordType": "盘点",
+  "remark": "测试非法数量"
+}
+
+### 401 未登录不能查询库存
+GET {{backend_HostAddress}}/inventory?page=1&size=10
