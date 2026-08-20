@@ -4,5 +4,10 @@ obj/
 node_modules/
 .idea/
 *.user
+.agents/
+.apifox/
+skills-lock.json
+UpgradeLog.htm
 
 appsettings.Development.json
+/.claude/skills
