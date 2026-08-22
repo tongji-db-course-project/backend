@@ -885,6 +885,22 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.DISCOUNT_AMOUNT)
                 .HasComment("优惠金额")
                 .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.PROMOTION_DISCOUNT)
+                .HasDefaultValueSql("0")
+                .HasComment("商品促销价优惠金额")
+                .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.MEMBER_DISCOUNT)
+                .HasDefaultValueSql("0")
+                .HasComment("会员等级优惠金额")
+                .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.COUPON_DEDUCT)
+                .HasDefaultValueSql("0")
+                .HasComment("优惠券抵扣金额")
+                .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.POINT_DEDUCT)
+                .HasDefaultValueSql("0")
+                .HasComment("积分抵扣金额")
+                .HasColumnType("NUMBER(12,2)");
             entity.Property(e => e.MEMBER_ID)
                 .HasPrecision(10)
                 .HasComment("会员编号");

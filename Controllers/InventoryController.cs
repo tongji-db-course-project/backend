@@ -46,20 +46,36 @@ public class InventoryController : ControllerBase
         [FromQuery] int size = 10,
         [FromQuery] string? keyword = null,
         [FromQuery] int? productId = null,
-        [FromQuery] string? recordType = null)
+        [FromQuery] string? recordType = null,
+        [FromQuery] string? status = null)
     {
         return await ExecuteAsync(async () =>
             ApiResponse<PageResult<InventoryRecordDto>>.Ok(
                 await _inventoryService.ListRecordsAsync(
-                    page, size, keyword, productId, recordType)));
+                    page, size, keyword, productId, recordType ?? status)));
     }
 
-    [HttpGet("{inventoryId:int}", Name = "getInventory")]
-    public async Task<IActionResult> GetInventory([FromRoute] int inventoryId)
+    [HttpGet("{productId:int}", Name = "getInventory")]
+    public async Task<IActionResult> GetInventory([FromRoute] int productId)
     {
         return await ExecuteAsync(async () =>
             ApiResponse<InventoryDto>.Ok(
-                await _inventoryService.GetInventoryAsync(inventoryId)));
+                await _inventoryService.GetInventoryByProductAsync(productId)));
+    }
+
+    [Authorize(Roles = "1")]
+    [HttpPut("{productId:int}", Name = "adjustInventoryByProduct")]
+    public async Task<IActionResult> AdjustInventoryByProduct(int productId, [FromBody] InventoryAdjustByProductRequest request)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdClaim, out var operatorId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录状态无效"));
+        return await ExecuteAsync(async () => ApiResponse<InventoryDto>.Ok(
+            await _inventoryService.AdjustInventoryAsync(new InventoryAdjustDto
+            {
+                productId = productId, changeQty = request.changeQty, recordType = request.recordType,
+                remark = request.remark, sourceNo = request.sourceNo
+            }, operatorId)));
     }
 
     [HttpGet("warning", Name = "listInventoryWarning")]
@@ -73,6 +89,13 @@ public class InventoryController : ControllerBase
             ApiResponse<PageResult<InventoryDto>>.Ok(
                 await _inventoryService.ListWarningAsync(
                     page, size, keyword, status)));
+    }
+
+    [HttpGet("purchase-suggestions", Name = "listPurchaseSuggestions")]
+    public async Task<IActionResult> PurchaseSuggestions()
+    {
+        return await ExecuteAsync(async () => ApiResponse<IReadOnlyList<SupplierPurchaseSuggestionDto>>.Ok(
+            await _inventoryService.GetPurchaseSuggestionsAsync()));
     }
 
     [Authorize(Roles = "1")]

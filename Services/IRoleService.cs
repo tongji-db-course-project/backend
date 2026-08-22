@@ -9,6 +9,8 @@ public interface IRoleService
 
     Task<RoleDetailDto> GetRoleAsync(int roleId);
 
+    Task<RoleDetailDto> CreateRoleAsync(UpdateRoleRequest request);
+
     Task<RoleDetailDto> UpdateRoleAsync(int roleId, UpdateRoleRequest request);
 
     Task DeleteRoleAsync(int roleId);

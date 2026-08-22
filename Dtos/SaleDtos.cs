@@ -6,6 +6,8 @@ public class CreateSaleRequest
 {
     public int? memberId { get; set; }
 
+    public int? couponId { get; set; }
+
     [Range(1, int.MaxValue)]
     public int warehouseId { get; set; }
 
@@ -28,6 +30,26 @@ public class CreateSaleItemRequest
     public int quantity { get; set; }
 }
 
+public class CheckoutSaleRequest
+{
+    public int? memberId { get; set; }
+    public int? couponId { get; set; }
+    [Range(1, int.MaxValue)] public int? userId { get; set; }
+    [Range(1, int.MaxValue)] public int warehouseId { get; set; } = 1;
+    [Required, MaxLength(20)] public string payType { get; set; } = string.Empty;
+    [Range(0, int.MaxValue)] public int redeemPoints { get; set; }
+    public decimal? discountAmount { get; set; }
+    public List<CheckoutSaleItemRequest>? details { get; set; }
+    public List<CreateSaleItemRequest>? items { get; set; }
+}
+
+public class CheckoutSaleItemRequest
+{
+    [Range(1, int.MaxValue)] public int productId { get; set; }
+    [Range(1, int.MaxValue)] public int saleQuantity { get; set; }
+    public decimal? salePrice { get; set; }
+}
+
 /// <summary>
 /// 销售订单列表项（含会员/收银员冗余字段），与会员消费记录接口共用
 /// </summary>
@@ -41,6 +63,12 @@ public class SaleListItemDto : SaleOrderListItem
 
 public class SaleDetailDto : SaleListItemDto
 {
+    public int? couponId { get; set; }
+    public string? couponName { get; set; }
+    public decimal promotionDiscount { get; set; }
+    public decimal memberDiscount { get; set; }
+    public decimal couponDeduct { get; set; }
+    public decimal pointDeduct { get; set; }
     public int redeemedPoints { get; set; }
     public int earnedPoints { get; set; }
     public List<SaleDetailItemDto> items { get; set; } = new();

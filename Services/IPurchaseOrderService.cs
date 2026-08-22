@@ -15,9 +15,13 @@ public interface IPurchaseOrderService
 
     Task CancelOrderAsync(int orderId);
 
+    Task<OrderStatusResultDto> SubmitOrderAsync(int orderId);
+
     Task<OrderStatusResultDto> ApproveOrderAsync(int orderId, ApprovalRequest request);
 
     Task<OrderStatusResultDto> RejectOrderAsync(int orderId, ApprovalRequest request);
 
     Task<PurchaseStockInResultDto> StockInAsync(int orderId, PurchaseStockInRequest request);
+
+    Task<IReadOnlyList<OrderStatusLogDto>> GetTimelineAsync(int orderId);
 }

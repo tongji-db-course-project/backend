@@ -28,7 +28,7 @@ public class PurchaseOrderDto
     /// <summary>审批人编号</summary>
     public int? approverId { get; set; }
 
-    /// <summary>采购单状态：待审批/已审批/已入库/已作废</summary>
+    /// <summary>采购单状态：待审批/已驳回/已审批/已入库/已作废</summary>
     public string? status { get; set; }
 
     /// <summary>创建时间</summary>
@@ -71,6 +71,9 @@ public class CreatePurchaseOrderRequest
     public int supplierId { get; set; }
 
     public DateTime? purchaseDate { get; set; }
+
+    [StringLength(200)]
+    public string? remark { get; set; }
 
     [Required(ErrorMessage = "申请人编号不能为空")]
     public int applicantId { get; set; }
@@ -179,4 +182,16 @@ public class PurchaseStockInResultDto
 
     /// <summary>采购总金额</summary>
     public decimal totalAmount { get; set; }
+}
+
+public class OrderStatusLogDto
+{
+    public int logId { get; set; }
+    public string orderType { get; set; } = string.Empty;
+    public int orderId { get; set; }
+    public string? oldStatus { get; set; }
+    public string newStatus { get; set; } = string.Empty;
+    public int? operatorId { get; set; }
+    public DateTime? changeTime { get; set; }
+    public string? remark { get; set; }
 }

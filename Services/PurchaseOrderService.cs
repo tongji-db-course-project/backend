@@ -14,6 +14,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 {
     // 状态值，与数据库 CHECK 约束一致
     private const string StatusPendingApproval = "待审批";
+    private const string StatusRejected = "已驳回";
     private const string StatusApproved = "已审批";
     private const string StatusStockedIn = "已入库";
     private const string StatusVoided = "已作废";
@@ -89,6 +90,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseOrderDto> CreateOrderAsync(CreatePurchaseOrderRequest request)
     {
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.applicantId))
+            throw new KeyNotFoundException($"申请人不存在：{request.applicantId}");
+
         // 校验供应商存在
         var supplierExists = await _db.SUPPLIERs.AnyAsync(s => s.SUPPLIER_ID == request.supplierId);
         if (!supplierExists)
@@ -99,6 +103,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         var details = request.details
             .DistinctBy(d => d.productId)
             .ToList();
+
+        if (details.Count != request.details.Count)
+            throw new ArgumentException("采购明细不能包含重复商品");
 
         if (details.Count == 0)
         {
@@ -116,6 +123,11 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             throw new ArgumentException($"商品不存在：{string.Join(",", missingIds)}");
         }
+        var invalidSupplierProducts = await _db.PRODUCTs.AsNoTracking()
+            .Where(p => productIds.Contains(p.PRODUCT_ID) && p.SUPPLIER_ID != request.supplierId)
+            .Select(p => p.PRODUCT_ID).ToListAsync();
+        if (invalidSupplierProducts.Count > 0)
+            throw new ArgumentException($"商品不属于所选供应商：{string.Join(",", invalidSupplierProducts)}");
 
         var now = DateTime.Now;
 
@@ -133,6 +145,17 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         _db.PURCHASE_ORDERs.Add(order);
         await _db.SaveChangesAsync(); // 先保存拿 ORDER_ID
+
+        _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
+        {
+            ORDER_TYPE = "采购单",
+            ORDER_ID = order.ORDER_ID,
+            OLD_STATUS = null,
+            NEW_STATUS = StatusPendingApproval,
+            OPERATOR_ID = request.applicantId,
+            CHANGE_TIME = now,
+            REMARK = string.IsNullOrWhiteSpace(request.remark) ? "创建并提交采购申请" : request.remark.Trim()
+        });
 
         foreach (var d in details)
         {
@@ -197,10 +220,10 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new KeyNotFoundException($"采购订单不存在：{orderId}");
         }
 
-        // 仅待审批可修改
-        if (order.STATUS != StatusPendingApproval)
+        // 待审批或已驳回状态可修改
+        if (order.STATUS is not (StatusPendingApproval or StatusRejected))
         {
-            throw new InvalidOperationException($"当前状态({order.STATUS})不允许修改，仅待审批可修改");
+            throw new InvalidOperationException($"当前状态({order.STATUS})不允许修改，仅待审批或已驳回可修改");
         }
 
         var supplierExists = await _db.SUPPLIERs.AnyAsync(s => s.SUPPLIER_ID == request.supplierId);
@@ -212,6 +235,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         var details = request.details
             .DistinctBy(d => d.productId)
             .ToList();
+        if (details.Count != request.details.Count)
+            throw new ArgumentException("采购明细不能包含重复商品");
         if (details.Count == 0)
         {
             throw new ArgumentException("采购明细不能为空");
@@ -227,6 +252,11 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             throw new ArgumentException($"商品不存在：{string.Join(",", missingIds)}");
         }
+        var invalidSupplierProducts = await _db.PRODUCTs.AsNoTracking()
+            .Where(p => productIds.Contains(p.PRODUCT_ID) && p.SUPPLIER_ID != request.supplierId)
+            .Select(p => p.PRODUCT_ID).ToListAsync();
+        if (invalidSupplierProducts.Count > 0)
+            throw new ArgumentException($"商品不属于所选供应商：{string.Join(",", invalidSupplierProducts)}");
 
         // 更新主表
         order.SUPPLIER_ID = request.supplierId;
@@ -269,13 +299,51 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new InvalidOperationException("采购订单已作废，请勿重复操作");
         }
 
+        var oldStatus = order.STATUS;
+        var now = DateTime.Now;
         order.STATUS = StatusVoided;
-        order.UPDATE_TIME = DateTime.Now;
+        order.UPDATE_TIME = now;
+        _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
+        {
+            ORDER_TYPE = "采购单", ORDER_ID = orderId, OLD_STATUS = oldStatus,
+            NEW_STATUS = StatusVoided, CHANGE_TIME = now, REMARK = "作废采购单"
+        });
         await _db.SaveChangesAsync();
+    }
+
+    public async Task<OrderStatusResultDto> SubmitOrderAsync(int orderId)
+    {
+        var order = await GetOrderForStatusChangeAsync(orderId);
+        if (order.STATUS is not (StatusPendingApproval or StatusRejected))
+            throw new InvalidOperationException($"当前状态({order.STATUS})不允许提交");
+
+        var now = DateTime.Now;
+        var oldStatus = order.STATUS;
+        var alreadySubmitted = oldStatus == StatusPendingApproval && await _db.ORDER_STATUS_LOGs.AnyAsync(x =>
+            x.ORDER_TYPE == "采购单" && x.ORDER_ID == orderId && x.NEW_STATUS == StatusPendingApproval);
+        if (!alreadySubmitted)
+        {
+            order.STATUS = StatusPendingApproval;
+            order.UPDATE_TIME = now;
+            _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
+            {
+                ORDER_TYPE = "采购单", ORDER_ID = orderId, OLD_STATUS = oldStatus,
+                NEW_STATUS = StatusPendingApproval, OPERATOR_ID = order.APPLICANT_ID,
+                CHANGE_TIME = now, REMARK = "提交采购申请"
+            });
+            await _db.SaveChangesAsync();
+        }
+        return new OrderStatusResultDto
+        {
+            orderId = order.ORDER_ID, orderCode = order.ORDER_CODE, status = StatusPendingApproval,
+            operatorId = order.APPLICANT_ID, changeTime = now
+        };
     }
 
     public async Task<OrderStatusResultDto> ApproveOrderAsync(int orderId, ApprovalRequest request)
     {
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.approverId))
+            throw new KeyNotFoundException($"审批人不存在：{request.approverId}");
         var order = await GetOrderForStatusChangeAsync(orderId);
 
         if (order.STATUS != StatusPendingApproval)
@@ -313,6 +381,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<OrderStatusResultDto> RejectOrderAsync(int orderId, ApprovalRequest request)
     {
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.approverId))
+            throw new KeyNotFoundException($"审批人不存在：{request.approverId}");
         var order = await GetOrderForStatusChangeAsync(orderId);
 
         if (order.STATUS != StatusPendingApproval)
@@ -320,7 +390,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new InvalidOperationException($"当前状态({order.STATUS})不允许驳回，仅待审批可驳回");
         }
 
-        // 驳回：状态保持待审批（申请人修改后可再次审批），驳回理由记入日志
+        order.STATUS = StatusRejected;
+        order.APPROVER_ID = request.approverId;
         order.UPDATE_TIME = DateTime.Now;
 
         var now = DateTime.Now;
@@ -329,7 +400,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             ORDER_TYPE = "采购单",
             ORDER_ID = orderId,
             OLD_STATUS = StatusPendingApproval,
-            NEW_STATUS = StatusPendingApproval,
+            NEW_STATUS = StatusRejected,
             OPERATOR_ID = request.approverId,
             CHANGE_TIME = now,
             REMARK = request.remark
@@ -341,7 +412,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             orderId = order.ORDER_ID,
             orderCode = order.ORDER_CODE,
-            status = StatusPendingApproval,
+            status = StatusRejected,
             operatorId = request.approverId,
             changeTime = now
         };
@@ -349,6 +420,8 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseStockInResultDto> StockInAsync(int orderId, PurchaseStockInRequest request)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM PURCHASE_ORDER WHERE ORDER_ID = {0} FOR UPDATE", orderId);
         var order = await _db.PURCHASE_ORDERs
             .Include(o => o.PURCHASE_ORDER_DETAILs)
             .FirstOrDefaultAsync(o => o.ORDER_ID == orderId);
@@ -356,6 +429,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             throw new KeyNotFoundException($"采购订单不存在：{orderId}");
         }
+
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.operatorId))
+            throw new KeyNotFoundException($"入库操作人不存在：{request.operatorId}");
 
         if (order.STATUS != StatusApproved)
         {
@@ -382,12 +458,24 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new ArgumentException($"入库商品不在采购订单明细中：{string.Join(",", invalidIds)}");
         }
 
+        var stockInQuantities = request.details
+            .GroupBy(x => x.productId)
+            .ToDictionary(x => x.Key, x => x.Sum(item => item.stockInQuantity));
+        var orderedQuantities = order.PURCHASE_ORDER_DETAILs
+            .ToDictionary(x => x.PRODUCT_ID, x => x.PURCHASE_QUANTITY ?? 0);
+        if (stockInQuantities.Count != orderedQuantities.Count ||
+            orderedQuantities.Any(x => !stockInQuantities.TryGetValue(x.Key, out var quantity) || quantity != x.Value))
+            throw new ArgumentException("入库商品及数量必须与采购订单明细完全一致");
+
         var now = DateTime.Now;
 
         // 事务：加库存 + 记流水 + 生成结算 + 更新状态，保证原子性
-        await using var transaction = await _db.Database.BeginTransactionAsync();
-
         // 1. 处理每个入库商品的库存
+        var stockProductIds = stockInQuantities.Keys.OrderBy(x => x).ToList();
+        var inList = string.Join(",", stockProductIds);
+        await _db.Database.ExecuteSqlRawAsync(
+            "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
+            request.warehouseId);
         var inventories = await _db.INVENTORies
             .Where(i => request.details.Select(d => d.productId).Contains(i.PRODUCT_ID)
                         && i.WAREHOUSE_ID == request.warehouseId)
@@ -470,6 +558,21 @@ public class PurchaseOrderService : IPurchaseOrderService
             stockInTime = now,
             totalAmount = order.TOTAL_AMOUNT ?? 0
         };
+    }
+
+    public async Task<IReadOnlyList<OrderStatusLogDto>> GetTimelineAsync(int orderId)
+    {
+        if (!await _db.PURCHASE_ORDERs.AsNoTracking().AnyAsync(x => x.ORDER_ID == orderId))
+            throw new KeyNotFoundException($"采购订单不存在：{orderId}");
+        return await _db.ORDER_STATUS_LOGs.AsNoTracking()
+            .Where(x => x.ORDER_TYPE == "采购单" && x.ORDER_ID == orderId)
+            .OrderBy(x => x.CHANGE_TIME).ThenBy(x => x.LOG_ID)
+            .Select(x => new OrderStatusLogDto
+            {
+                logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID,
+                oldStatus = x.OLD_STATUS, newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID,
+                changeTime = x.CHANGE_TIME, remark = x.REMARK
+            }).ToListAsync();
     }
 
     private async Task<PURCHASE_ORDER> GetOrderForStatusChangeAsync(int orderId)

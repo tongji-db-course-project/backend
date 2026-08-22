@@ -19,4 +19,6 @@ public interface IInventoryService
 
     Task<InventoryDto> AdjustInventoryAsync(
         InventoryAdjustDto request, int operatorId);
+
+    Task<IReadOnlyList<SupplierPurchaseSuggestionDto>> GetPurchaseSuggestionsAsync();
 }

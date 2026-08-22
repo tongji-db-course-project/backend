@@ -11,7 +11,8 @@ public interface IProductService
     /// 分页查询商品列表
     /// </summary>
     Task<PageResult<ProductListItemDto>> ListProductsAsync(
-        int page, int size, string? keyword, string? status);
+        int page, int size, string? keyword, string? status,
+        int? categoryId, int? supplierId, int? minStock, int? maxStock);
 
     /// <summary>
     /// 根据ID查询商品详情

@@ -1,11 +1,13 @@
 using backend.Dtos;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("members")]
+[Authorize]
 public class MembersController : ControllerBase
 {
     private readonly IMemberService _memberService;
@@ -59,7 +61,7 @@ public class MembersController : ControllerBase
         var result = await _memberService.GetMemberByIdAsync(memberId);
 
         if (result == null)
-            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "会员不存在"));
 
         return Ok(ApiResponse<Member>.Ok(result));
     }
@@ -77,7 +79,7 @@ public class MembersController : ControllerBase
             var result = await _memberService.UpdateMemberAsync(memberId, dto);
 
             if (result == null)
-                return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
+                return NotFound(ApiResponse<string>.Fail(404, "会员不存在"));
 
             return Ok(ApiResponse<Member>.Ok(result));
         }
@@ -98,7 +100,7 @@ public class MembersController : ControllerBase
         var success = await _memberService.DeleteMemberAsync(memberId);
 
         if (!success)
-            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "会员不存在"));
 
         return Ok(ApiResponse<string>.Ok("删除成功"));
     }
@@ -114,7 +116,7 @@ public class MembersController : ControllerBase
         var result = await _memberService.GetMemberByPhoneAsync(phone);
 
         if (result == null)
-            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "会员不存在"));
 
         return Ok(ApiResponse<Member>.Ok(result));
     }
@@ -133,7 +135,7 @@ public class MembersController : ControllerBase
         var (result, memberExists) = await _memberService.GetMemberOrdersAsync(memberId, page, size);
 
         if (!memberExists)
-            return NotFound(ApiResponse<string>.Fail(400, "会员不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "会员不存在"));
 
         return Ok(ApiResponse<PageResult<SaleListItemDto>>.Ok(result!));
     }

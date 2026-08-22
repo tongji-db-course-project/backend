@@ -79,6 +79,22 @@ public class RoleService : IRoleService
         return role;
     }
 
+    public async Task<RoleDetailDto> CreateRoleAsync(UpdateRoleRequest request)
+    {
+        var roleName = NormalizeRequired(request.roleName, "角色名称不能为空");
+        if (await _db.SYS_ROLEs.AnyAsync(r => r.ROLE_NAME == roleName))
+            throw new InvalidOperationException("角色名称已存在");
+
+        var role = new SYS_ROLE
+        {
+            ROLE_NAME = roleName,
+            ROLE_DESC = NormalizeNullable(request.roleDesc)
+        };
+        _db.SYS_ROLEs.Add(role);
+        await _db.SaveChangesAsync();
+        return await GetRoleAsync(role.ROLE_ID);
+    }
+
     public async Task<RoleDetailDto> UpdateRoleAsync(int roleId, UpdateRoleRequest request)
     {
         var roleName = NormalizeRequired(request.roleName, "角色名称不能为空");
