@@ -1,56 +1,54 @@
-using backend.Data;
 using backend.Dtos;
-using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
-[ApiController]
-[Route("suppliers")]
-[Authorize]
+[ApiController, Route("suppliers"), Authorize]
 public class SuppliersController : ControllerBase
 {
-    private readonly AppDbContext _db;
-
-    public SuppliersController(AppDbContext db)
-    {
-        _db = db;
-    }
+    private readonly ISupplierService _service;
+    public SuppliersController(ISupplierService service) => _service = service;
 
     [HttpGet]
-    public async Task<IActionResult> List(
-        [FromQuery] int page = 1,
-        [FromQuery] int size = 10,
-        [FromQuery] string? keyword = null,
-        [FromQuery] string? status = null)
-    {
-        page = Math.Max(1, page);
-        size = Math.Clamp(size, 1, 100);
+    public async Task<IActionResult> List(int page = 1, int size = 10, string? keyword = null, string? status = null) =>
+        Ok(ApiResponse<PageResult<SupplierDto>>.Ok(await _service.ListAsync(page, size, keyword, status)));
 
-        var query = _db.SUPPLIERs.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(keyword))
-        {
-            var kw = keyword.Trim();
-            query = query.Where(s => s.SUPPLIER_NAME.Contains(kw) || (s.CONTACT_NAME != null && s.CONTACT_NAME.Contains(kw)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(s => s.STATUS == status.Trim());
-
-        var total = await query.CountAsync();
-        var items = await query.OrderBy(s => s.SUPPLIER_ID).Skip((page - 1) * size).Take(size).ToListAsync();
-
-        return Ok(ApiResponse<PageResult<SUPPLIER>>.Ok(new PageResult<SUPPLIER> { list = items, total = total, page = page, size = size }));
-    }
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] SaveSupplierRequest request) =>
+        await Execute(() => _service.CreateAsync(request));
 
     [HttpGet("{supplierId:int}")]
-    public async Task<IActionResult> GetById(int supplierId)
+    public async Task<IActionResult> Get(int supplierId) => await Execute(() => _service.GetAsync(supplierId));
+
+    [HttpPut("{supplierId:int}")]
+    public async Task<IActionResult> Update(int supplierId, [FromBody] SaveSupplierRequest request) =>
+        await Execute(() => _service.UpdateAsync(supplierId, request));
+
+    [HttpDelete("{supplierId:int}")]
+    public async Task<IActionResult> Delete(int supplierId)
     {
-        var item = await _db.SUPPLIERs.AsNoTracking().FirstOrDefaultAsync(s => s.SUPPLIER_ID == supplierId);
-        if (item == null) return NotFound(ApiResponse<string>.Fail(404, "供应商不存在"));
-        return Ok(ApiResponse<SUPPLIER>.Ok(item));
+        try { await _service.DeleteAsync(supplierId); return Ok(ApiResponse<object?>.Ok(null, "删除成功")); }
+        catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(404, ex.Message)); }
+    }
+
+    [HttpGet("{supplierId:int}/products")]
+    public async Task<IActionResult> Products(int supplierId, int page = 1, int size = 10)
+    {
+        try { return Ok(ApiResponse<PageResult<ProductListItemDto>>.Ok(await _service.ListProductsAsync(supplierId, page, size))); }
+        catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(404, ex.Message)); }
+    }
+
+    [HttpGet("{supplierId:int}/performance")]
+    public async Task<IActionResult> Performance(int supplierId, bool updateCreditLevel = false) =>
+        await Execute(() => _service.GetPerformanceAsync(supplierId, updateCreditLevel));
+
+    private async Task<IActionResult> Execute<T>(Func<Task<T>> action)
+    {
+        try { return Ok(ApiResponse<T>.Ok(await action())); }
+        catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(400, ex.Message)); }
+        catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(404, ex.Message)); }
+        catch (InvalidOperationException ex) { return Conflict(ApiResponse<object>.Fail(409, ex.Message)); }
     }
 }

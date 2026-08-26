@@ -42,6 +42,13 @@ public class RolesController : ControllerBase
         }
     }
 
+    [HttpPost("/roles", Name = "createRole")]
+    public async Task<IActionResult> CreateRole([FromBody] UpdateRoleRequest request)
+    {
+        try { return Ok(ApiResponse<RoleDetailDto>.Ok(await _roleService.CreateRoleAsync(request))); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return Error(ex); }
+    }
+
     [HttpPut("/roles/{roleId:int}", Name = "updateRole")]
     [ProducesResponseType(typeof(ApiResponse<RoleDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateRole([FromRoute] int roleId, [FromBody] UpdateRoleRequest request)
@@ -88,6 +95,11 @@ public class RolesController : ControllerBase
             return Error(ex);
         }
     }
+
+    [HttpPost("/roles/{roleId:int}/menus", Name = "assignRoleMenusPost")]
+    public Task<IActionResult> AssignRoleMenusPost(
+        [FromRoute] int roleId,
+        [FromBody] AssignRoleMenusRequest request) => AssignRoleMenus(roleId, request);
 
     private ObjectResult Error(Exception ex)
     {

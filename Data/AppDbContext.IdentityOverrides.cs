@@ -23,6 +23,10 @@ public partial class AppDbContext
             .Property(x => x.SALE_DETAIL_ID)
             .ValueGeneratedOnAdd();
 
+        modelBuilder.Entity<Models.INVENTORY>()
+            .Property(x => x.INVENTORY_ID)
+            .ValueGeneratedOnAdd();
+
         modelBuilder.Entity<Models.INVENTORY_RECORD>()
             .Property(x => x.RECORD_ID)
             .ValueGeneratedOnAdd();

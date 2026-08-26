@@ -50,7 +50,8 @@ public class ProductService : IProductService
     }
 
     public async Task<PageResult<ProductListItemDto>> ListProductsAsync(
-        int page, int size, string? keyword, string? status)
+        int page, int size, string? keyword, string? status,
+        int? categoryId, int? supplierId, int? minStock, int? maxStock)
     {
         // 防御性校验
         if (page < 1) page = 1;
@@ -78,6 +79,11 @@ public class ProductService : IProductService
             var st = status.Trim();
             query = query.Where(p => p.STATUS == st);
         }
+
+        if (categoryId.HasValue) query = query.Where(p => p.CATEGORY_ID == categoryId.Value);
+        if (supplierId.HasValue) query = query.Where(p => p.SUPPLIER_ID == supplierId.Value);
+        if (minStock.HasValue) query = query.Where(p => (p.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0) >= minStock.Value);
+        if (maxStock.HasValue) query = query.Where(p => (p.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0) <= maxStock.Value);
 
         // 先取总数，再按主键排序分页
         var total = await query.CountAsync();

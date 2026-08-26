@@ -177,7 +177,7 @@ public class InventoryService : IInventoryService
         if (request.changeQty == 0)
             throw new BusinessException(400, "库存变动数量不能为0");
 
-        var recordType = request.recordType.Trim();
+        var recordType = request.recordType.Trim() == "盘点调整" ? "盘点" : request.recordType.Trim();
         if (!AllowedManualRecordTypes.Contains(recordType))
             throw new BusinessException(400, "流水类型仅允许：手动入库、手动出库、盘点");
 
@@ -207,9 +207,6 @@ public class InventoryService : IInventoryService
 
             inventory = new INVENTORY
             {
-                // 种子数据显式写入了 Identity 主键，数据库 Identity 的下一值可能未推进。
-                // 单仓库课程项目中显式使用当前最大值 + 1，避免首次新增时主键冲突。
-                INVENTORY_ID = await GetNextInventoryIdAsync(),
                 PRODUCT_ID = request.productId,
                 WAREHOUSE_ID = warehouseId,
                 CURRENT_STOCK = request.changeQty,
@@ -234,8 +231,6 @@ public class InventoryService : IInventoryService
 
         _db.INVENTORY_RECORDs.Add(new INVENTORY_RECORD
         {
-            // 原始种子流水使用 record_id 1..5，显式生成后续编号以避开 Identity 冲突。
-            RECORD_ID = await GetNextInventoryRecordIdAsync(),
             PRODUCT_ID = request.productId,
             RECORD_TYPE = recordType,
             SOURCE_NO = NormalizeOptional(request.sourceNo),
@@ -259,6 +254,37 @@ public class InventoryService : IInventoryService
         }
 
         return MapInventory(inventory);
+    }
+
+    public async Task<IReadOnlyList<SupplierPurchaseSuggestionDto>> GetPurchaseSuggestionsAsync()
+    {
+        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warnings = await _db.PRODUCTs.AsNoTracking()
+            .Where(x => x.STATUS == "在售")
+            .Select(x => new
+            {
+                x.PRODUCT_ID, x.PRODUCT_NAME, x.STOCK_WARNING, x.SUPPLIER_ID,
+                x.SUPPLIER.SUPPLIER_NAME, x.SUPPLIER.MIN_ORDER_QTY,
+                CurrentStock = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                    .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0
+            })
+            .Where(x => x.STOCK_WARNING.HasValue && x.CurrentStock <= x.STOCK_WARNING.Value)
+            .ToListAsync();
+
+        return warnings.GroupBy(x => new { x.SUPPLIER_ID, x.SUPPLIER_NAME })
+            .Select(group => new SupplierPurchaseSuggestionDto
+            {
+                supplierId = group.Key.SUPPLIER_ID,
+                supplierName = group.Key.SUPPLIER_NAME,
+                items = group.Select(x => new PurchaseSuggestionItemDto
+                {
+                    productId = x.PRODUCT_ID,
+                    productName = x.PRODUCT_NAME,
+                    currentStock = x.CurrentStock,
+                    stockWarning = x.STOCK_WARNING ?? 0,
+                    suggestedQuantity = Math.Max(x.MIN_ORDER_QTY ?? 0, Math.Max(1, (x.STOCK_WARNING ?? 0) * 2 - x.CurrentStock))
+                }).OrderBy(x => x.productId).ToList()
+            }).OrderBy(x => x.supplierId).ToList();
     }
 
     private IQueryable<INVENTORY> BuildInventoryQuery(
@@ -309,22 +335,6 @@ public class InventoryService : IInventoryService
             > 1 => throw new BusinessException(409, "单仓库模式下只能配置一个启用仓库"),
             _ => warehouseIds[0]
         };
-    }
-
-    private async Task<int> GetNextInventoryIdAsync()
-    {
-        var maxId = await _db.INVENTORies
-            .Select(x => (int?)x.INVENTORY_ID)
-            .MaxAsync() ?? 0;
-        return checked(maxId + 1);
-    }
-
-    private async Task<int> GetNextInventoryRecordIdAsync()
-    {
-        var maxId = await _db.INVENTORY_RECORDs
-            .Select(x => (int?)x.RECORD_ID)
-            .MaxAsync() ?? 0;
-        return checked(maxId + 1);
     }
 
     private static InventoryDto MapInventory(INVENTORY inventory) => new()

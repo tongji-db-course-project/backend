@@ -54,4 +54,9 @@ public interface IStatisticsService
     /// <param name="endDate">结束日期</param>
     /// <returns>会员消费统计数据</returns>
     Task<MemberStatistics> GetMemberStatisticsAsync(DateTime? startDate, DateTime? endDate);
+
+    Task<List<ProductProfitRankDto>> GetProductProfitRankAsync(DateTime startDate, DateTime endDate);
+    Task<List<InventoryTurnoverDto>> GetInventoryTurnoverAsync(DateTime startDate, DateTime endDate);
+    Task<DailySettlementDto> GenerateDailySettlementAsync(DateTime date);
+    Task<DailySettlementDto> GetDailySettlementAsync(DateTime date);
 }

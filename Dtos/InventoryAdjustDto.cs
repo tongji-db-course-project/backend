@@ -22,3 +22,12 @@ public class InventoryAdjustDto
     [StringLength(50)]
     public string? sourceNo { get; set; }
 }
+
+public class InventoryAdjustByProductRequest
+{
+    public int changeQty { get; set; }
+    [Required, StringLength(20)] public string recordType { get; set; } = string.Empty;
+    [Range(1, int.MaxValue)] public int operatorId { get; set; }
+    [StringLength(200)] public string? remark { get; set; }
+    [StringLength(50)] public string? sourceNo { get; set; }
+}

@@ -130,8 +130,15 @@ public class PurchaseOrdersController : ControllerBase
         }
     }
 
+    [HttpPost("{orderId:int}/submit", Name = "submitPurchaseOrder")]
+    public async Task<IActionResult> SubmitOrder([FromRoute] int orderId)
+    {
+        try { return Ok(ApiResponse<OrderStatusResultDto>.Ok(await _purchaseOrderService.SubmitOrderAsync(orderId))); }
+        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { return Error(ex); }
+    }
+
     /// <summary>
-    /// 驳回采购订单（保持待审批，驳回理由记入日志，可修改后再次审批）
+    /// 驳回采购订单（待审批 → 已驳回，可修改后再次提交）
     /// </summary>
     [HttpPost("{orderId:int}/reject", Name = "rejectPurchaseOrder")]
     [ProducesResponseType(typeof(ApiResponse<OrderStatusResultDto>), StatusCodes.Status200OK)]
@@ -168,6 +175,13 @@ public class PurchaseOrdersController : ControllerBase
         {
             return Error(ex);
         }
+    }
+
+    [HttpGet("{orderId:int}/timeline", Name = "getPurchaseOrderTimeline")]
+    public async Task<IActionResult> Timeline([FromRoute] int orderId)
+    {
+        try { return Ok(ApiResponse<IReadOnlyList<OrderStatusLogDto>>.Ok(await _purchaseOrderService.GetTimelineAsync(orderId))); }
+        catch (KeyNotFoundException ex) { return Error(ex); }
     }
 
     private ObjectResult Error(Exception ex)

@@ -32,3 +32,15 @@ public class AdjustPointsRequest
     [Required, MaxLength(200)]
     public string remark { get; set; } = string.Empty;
 }
+
+public class ManualPointsRequest
+{
+    [Range(1, 1000000)]
+    public int changePoints { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int operatorId { get; set; }
+
+    [MaxLength(200)]
+    public string? remark { get; set; }
+}

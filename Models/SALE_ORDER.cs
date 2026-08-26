@@ -43,6 +43,14 @@ public partial class SALE_ORDER
     /// </summary>
     public decimal? DISCOUNT_AMOUNT { get; set; }
 
+    public decimal? PROMOTION_DISCOUNT { get; set; }
+
+    public decimal? MEMBER_DISCOUNT { get; set; }
+
+    public decimal? COUPON_DEDUCT { get; set; }
+
+    public decimal? POINT_DEDUCT { get; set; }
+
     /// <summary>
     /// 实付金额
     /// </summary>

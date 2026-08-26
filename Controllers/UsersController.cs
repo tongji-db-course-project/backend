@@ -105,6 +105,17 @@ public class UsersController : ControllerBase
         }
     }
 
+    [HttpDelete("/users/{userId:int}", Name = "deleteUser")]
+    public async Task<IActionResult> DeleteUser([FromRoute] int userId)
+    {
+        try
+        {
+            await _userService.DeleteUserAsync(userId);
+            return Ok(ApiResponse<object?>.Ok(null, "删除成功"));
+        }
+        catch (KeyNotFoundException ex) { return Error(ex); }
+    }
+
     private ObjectResult Error(Exception ex)
     {
         var statusCode = ex switch

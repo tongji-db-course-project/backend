@@ -30,9 +30,14 @@ public class ProductsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] string? keyword = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] int? supplierId = null,
+        [FromQuery] int? minStock = null,
+        [FromQuery] int? maxStock = null)
     {
-        var result = await _productService.ListProductsAsync(page, size, keyword, status);
+        var result = await _productService.ListProductsAsync(
+            page, size, keyword, status, categoryId, supplierId, minStock, maxStock);
         return Ok(ApiResponse<PageResult<ProductListItemDto>>.Ok(result));
     }
 
@@ -47,7 +52,7 @@ public class ProductsController : ControllerBase
         var result = await _productService.GetProductByIdAsync(productId);
 
         if (result == null)
-            return NotFound(ApiResponse<string>.Fail(400, "商品不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "商品不存在"));
 
         return Ok(ApiResponse<ProductListItemDto>.Ok(result));
     }
@@ -63,7 +68,7 @@ public class ProductsController : ControllerBase
         var result = await _productService.GetProductByBarcodeAsync(barcode);
 
         if (result == null)
-            return NotFound(ApiResponse<string>.Fail(400, "商品不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "商品不存在"));
 
         return Ok(ApiResponse<ProductListItemDto>.Ok(result));
     }
@@ -114,7 +119,7 @@ public class ProductsController : ControllerBase
             var result = await _productService.UpdateProductAsync(productId, dto);
 
             if (result == null)
-                return NotFound(ApiResponse<string>.Fail(400, "商品不存在"));
+                return NotFound(ApiResponse<string>.Fail(404, "商品不存在"));
 
             return Ok(ApiResponse<ProductListItemDto>.Ok(result));
         }
@@ -135,7 +140,7 @@ public class ProductsController : ControllerBase
         var success = await _productService.DeleteProductAsync(productId);
 
         if (!success)
-            return NotFound(ApiResponse<string>.Fail(400, "商品不存在"));
+            return NotFound(ApiResponse<string>.Fail(404, "商品不存在"));
 
         return Ok(ApiResponse<string>.Ok("删除成功"));
     }

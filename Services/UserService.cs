@@ -181,6 +181,14 @@ public class UserService : IUserService
         return await GetUserAsync(userId);
     }
 
+    public async Task DeleteUserAsync(int userId)
+    {
+        var user = await _db.SYS_USERs.FirstOrDefaultAsync(u => u.USER_ID == userId)
+            ?? throw new KeyNotFoundException("用户不存在");
+        user.STATUS = DisabledStatus;
+        await _db.SaveChangesAsync();
+    }
+
     public async Task<IEnumerable<MenuListItemDto>> ListUserMenusAsync(int userId)
     {
         var user = await _db.SYS_USERs

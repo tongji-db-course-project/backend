@@ -11,11 +11,17 @@ public class PointService : IPointService
     private readonly AppDbContext _db;
     public PointService(AppDbContext db) => _db = db;
 
-    public async Task<PageResult<PointRecordDto>> ListAsync(int page, int size, int? memberId, string? changeType)
+    public async Task<PageResult<PointRecordDto>> ListAsync(int page, int size, int? memberId, string? changeType, string? keyword)
     {
         (page, size) = NormalizePage(page, size);
         var query = _db.POINT_RECORDs.AsNoTracking().AsQueryable();
         if (memberId.HasValue) query = query.Where(x => x.MEMBER_ID == memberId.Value);
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var value = keyword.Trim();
+            query = query.Where(x => x.MEMBER.MEMBER_NAME.Contains(value) || x.MEMBER.PHONE.Contains(value) ||
+                (x.SALE != null && x.SALE.SALE_NO.Contains(value)) || (x.REMARK != null && x.REMARK.Contains(value)));
+        }
         if (!string.IsNullOrWhiteSpace(changeType))
         {
             var normalizedType = changeType.Trim();

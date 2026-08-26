@@ -10,7 +10,7 @@ namespace backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("statistics")]
-[AllowAnonymous]
+[Authorize]
 public class StatisticsController : ControllerBase
 {
     private readonly IStatisticsService _statisticsService;
@@ -34,7 +34,7 @@ public class StatisticsController : ControllerBase
         [FromQuery] DateTime endDate)
     {
         if (startDate > endDate)
-            return BadRequest(ApiResponse<string>.Ok("开始日期不能大于结束日期"));
+            return BadRequest(ApiResponse<string>.Fail(400, "开始日期不能大于结束日期"));
 
         var result = await _statisticsService.GetDailySalesStatisticsAsync(startDate, endDate);
         return Ok(ApiResponse<List<SalesStatistics>>.Ok(result));
@@ -54,7 +54,7 @@ public class StatisticsController : ControllerBase
         [FromQuery] DateTime endDate)
     {
         if (startDate > endDate)
-            return BadRequest(ApiResponse<string>.Ok("开始日期不能大于结束日期"));
+            return BadRequest(ApiResponse<string>.Fail(400, "开始日期不能大于结束日期"));
 
         var result = await _statisticsService.GetMonthlySalesStatisticsAsync(startDate, endDate);
         return Ok(ApiResponse<List<MonthlySalesStatistics>>.Ok(result));
@@ -74,7 +74,7 @@ public class StatisticsController : ControllerBase
         [FromQuery] DateTime endDate)
     {
         if (startDate > endDate)
-            return BadRequest(ApiResponse<string>.Ok("开始日期不能大于结束日期"));
+            return BadRequest(ApiResponse<string>.Fail(400, "开始日期不能大于结束日期"));
 
         var result = await _statisticsService.GetProductRankAsync(startDate, endDate);
         return Ok(ApiResponse<List<ProductRank>>.Ok(result));
@@ -94,7 +94,7 @@ public class StatisticsController : ControllerBase
         [FromQuery] DateTime endDate)
     {
         if (startDate > endDate)
-            return BadRequest(ApiResponse<string>.Ok("开始日期不能大于结束日期"));
+            return BadRequest(ApiResponse<string>.Fail(400, "开始日期不能大于结束日期"));
 
         var result = await _statisticsService.GetProfitStatisticsAsync(startDate, endDate);
         return Ok(ApiResponse<ProfitStatistics>.Ok(result));
@@ -129,9 +129,34 @@ public class StatisticsController : ControllerBase
         [FromQuery] DateTime? endDate)
     {
         if (startDate.HasValue && endDate.HasValue && startDate > endDate)
-            return BadRequest(ApiResponse<string>.Ok("开始日期不能大于结束日期"));
+            return BadRequest(ApiResponse<string>.Fail(400, "开始日期不能大于结束日期"));
 
         var result = await _statisticsService.GetMemberStatisticsAsync(startDate, endDate);
         return Ok(ApiResponse<MemberStatistics>.Ok(result));
+    }
+
+    [HttpGet("products/profit-rank")]
+    public async Task<IActionResult> GetProductProfitRank(DateTime startDate, DateTime endDate)
+    {
+        if (startDate > endDate) return BadRequest(ApiResponse<object>.Fail(400, "开始日期不能大于结束日期"));
+        return Ok(ApiResponse<List<ProductProfitRankDto>>.Ok(await _statisticsService.GetProductProfitRankAsync(startDate, endDate)));
+    }
+
+    [HttpGet("inventory/turnover")]
+    public async Task<IActionResult> GetInventoryTurnover(DateTime startDate, DateTime endDate)
+    {
+        if (startDate > endDate) return BadRequest(ApiResponse<object>.Fail(400, "开始日期不能大于结束日期"));
+        return Ok(ApiResponse<List<InventoryTurnoverDto>>.Ok(await _statisticsService.GetInventoryTurnoverAsync(startDate, endDate)));
+    }
+
+    [HttpPost("daily-settlements/{date:datetime}")]
+    public async Task<IActionResult> GenerateDailySettlement(DateTime date) =>
+        Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GenerateDailySettlementAsync(date)));
+
+    [HttpGet("daily-settlements/{date:datetime}")]
+    public async Task<IActionResult> GetDailySettlement(DateTime date)
+    {
+        try { return Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GetDailySettlementAsync(date))); }
+        catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(404, ex.Message)); }
     }
 }

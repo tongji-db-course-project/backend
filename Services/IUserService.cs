@@ -15,5 +15,7 @@ public interface IUserService
 
     Task<UserDetailDto> ChangeUserStatusAsync(int userId, ChangeUserStatusRequest request);
 
+    Task DeleteUserAsync(int userId);
+
     Task<IEnumerable<MenuListItemDto>> ListUserMenusAsync(int userId);
 }
