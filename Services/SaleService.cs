@@ -291,8 +291,11 @@ public class SaleService : ISaleService
             throw new InvalidOperationException("销售单存在退货记录，不能直接作废");
         var productIds = sale.SALE_ORDER_DETAILs.Select(x => x.PRODUCT_ID).OrderBy(x => x).ToList();
         var inList = string.Join(",", productIds);
-        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM INVENTORY WHERE PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE");
-        var inventories = await _db.INVENTORies.Where(x => productIds.Contains(x.PRODUCT_ID)).OrderBy(x => x.WAREHOUSE_ID).ToListAsync();
+        var warehouseId = await GetDefaultWarehouseIdAsync();
+        await _db.Database.ExecuteSqlRawAsync(
+            "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
+            warehouseId);
+        var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID)).ToListAsync();
         var now = DateTime.Now;
         foreach (var detail in sale.SALE_ORDER_DETAILs)
         {
@@ -350,5 +353,22 @@ public class SaleService : ISaleService
                 logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID, oldStatus = x.OLD_STATUS,
                 newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID, changeTime = x.CHANGE_TIME, remark = x.REMARK
             }).ToListAsync();
+    }
+
+    // 单仓库模式：作废恢复库存时固定退回唯一启用仓库，避免因未指定仓库而恢复到任意一条库存记录上。
+    private async Task<int> GetDefaultWarehouseIdAsync()
+    {
+        var warehouseIds = await _db.WAREHOUSEs.AsNoTracking()
+            .Where(x => x.STATUS == "启用")
+            .OrderBy(x => x.WAREHOUSE_ID)
+            .Select(x => x.WAREHOUSE_ID)
+            .Take(2)
+            .ToListAsync();
+        return warehouseIds.Count switch
+        {
+            0 => throw new InvalidOperationException("系统未配置启用仓库"),
+            > 1 => throw new InvalidOperationException("单仓库模式下只能配置一个启用仓库"),
+            _ => warehouseIds[0]
+        };
     }
 }

@@ -37,6 +37,10 @@ public class ReturnService : IReturnService
         if (request.details.Count == 0) throw new ArgumentException("退货明细不能为空");
         if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.operatorId))
             throw new KeyNotFoundException("经办人不存在");
+
+        // FOR UPDATE 行锁：串行化对同一销售单的并发退货创建，避免并发下累计退货量各自通过校验导致超退。
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM SALE_ORDER WHERE SALE_ID = {0} FOR UPDATE", request.saleId);
         var sale = await _db.SALE_ORDERs.AsNoTracking().Include(x => x.SALE_ORDER_DETAILs)
             .FirstOrDefaultAsync(x => x.SALE_ID == request.saleId) ?? throw new KeyNotFoundException("销售单不存在");
         if (sale.STATUS != "已完成") throw new InvalidOperationException("仅已完成销售单可以退货");
@@ -79,6 +83,7 @@ public class ReturnService : IReturnService
             OPERATOR_ID = request.operatorId, CHANGE_TIME = now, REMARK = request.remark
         });
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return await GetAsync(order.RETURN_ID);
     }
 
@@ -89,11 +94,14 @@ public class ReturnService : IReturnService
         var order = await _db.RETURN_ORDERs.Include(x => x.RETURN_ORDER_DETAILs).Include(x => x.SALE)
             .FirstOrDefaultAsync(x => x.RETURN_ID == returnId) ?? throw new KeyNotFoundException("退货单不存在");
         if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
+        var warehouseId = await GetDefaultWarehouseIdAsync();
         var productIds = order.RETURN_ORDER_DETAILs.Select(x => x.PRODUCT_ID).OrderBy(x => x).ToList();
         var inList = string.Join(",", productIds);
-        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM INVENTORY WHERE PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE");
-        var inventories = await _db.INVENTORies.Where(x => productIds.Contains(x.PRODUCT_ID))
-            .OrderBy(x => x.WAREHOUSE_ID).ToListAsync();
+        await _db.Database.ExecuteSqlRawAsync(
+            "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
+            warehouseId);
+        var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID))
+            .ToListAsync();
         var now = DateTime.Now;
         foreach (var detail in order.RETURN_ORDER_DETAILs)
         {
@@ -167,4 +175,21 @@ public class ReturnService : IReturnService
             refundPrice = d.REFUND_PRICE, subtotal = d.SUBTOTAL
         }).ToList() : null
     });
+
+    // 单仓库模式：退货入库仓库固定为唯一启用仓库，避免因未指定仓库而将库存退回到任意一条库存记录上。
+    private async Task<int> GetDefaultWarehouseIdAsync()
+    {
+        var warehouseIds = await _db.WAREHOUSEs.AsNoTracking()
+            .Where(x => x.STATUS == "启用")
+            .OrderBy(x => x.WAREHOUSE_ID)
+            .Select(x => x.WAREHOUSE_ID)
+            .Take(2)
+            .ToListAsync();
+        return warehouseIds.Count switch
+        {
+            0 => throw new InvalidOperationException("系统未配置启用仓库"),
+            > 1 => throw new InvalidOperationException("单仓库模式下只能配置一个启用仓库"),
+            _ => warehouseIds[0]
+        };
+    }
 }
