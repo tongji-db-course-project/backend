@@ -10,7 +10,12 @@ public class SupplierService : ISupplierService
     private readonly AppDbContext _db;
     public SupplierService(AppDbContext db) => _db = db;
 
-    public async Task<PageResult<SupplierDto>> ListAsync(int page, int size, string? keyword, string? status)
+    public async Task<PageResult<SupplierDto>> ListAsync(
+        int page,
+        int size,
+        string? keyword,
+        string? status,
+        string? creditLevel)
     {
         page = Math.Max(1, page);
         size = Math.Clamp(size, 1, 100);
@@ -23,6 +28,7 @@ public class SupplierService : ISupplierService
                 (x.PHONE != null && x.PHONE.Contains(value)));
         }
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.STATUS == status.Trim());
+        if (!string.IsNullOrWhiteSpace(creditLevel)) query = query.Where(x => x.CREDIT_LEVEL == creditLevel.Trim());
         var total = await query.CountAsync();
         var list = await Project(query.OrderBy(x => x.SUPPLIER_ID))
             .Skip((page - 1) * size).Take(size).ToListAsync();
@@ -124,7 +130,8 @@ public class SupplierService : ISupplierService
 
     private static IQueryable<SupplierDto> Project(IQueryable<SUPPLIER> query) => query.Select(x => new SupplierDto
     {
-        supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER_NAME, contactPerson = x.CONTACT_NAME,
+        supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER_NAME,
+        contactPerson = x.CONTACT_NAME, contactName = x.CONTACT_NAME,
         phone = x.PHONE, email = x.EMAIL, address = x.ADDRESS, creditLevel = x.CREDIT_LEVEL,
         paymentCycle = x.PAYMENT_CYCLE, minOrderQty = x.MIN_ORDER_QTY, bankName = x.BANK_NAME,
         bankAccount = x.BANK_ACCOUNT, status = x.STATUS
@@ -145,7 +152,7 @@ public class SupplierService : ISupplierService
     private static void Apply(SUPPLIER supplier, SaveSupplierRequest request, string name)
     {
         supplier.SUPPLIER_NAME = name;
-        supplier.CONTACT_NAME = request.contactPerson?.Trim(); supplier.PHONE = request.phone?.Trim();
+        supplier.CONTACT_NAME = (request.contactName ?? request.contactPerson)?.Trim(); supplier.PHONE = request.phone?.Trim();
         supplier.EMAIL = request.email?.Trim(); supplier.ADDRESS = request.address?.Trim();
         supplier.CREDIT_LEVEL = request.creditLevel?.Trim(); supplier.PAYMENT_CYCLE = request.paymentCycle;
         supplier.MIN_ORDER_QTY = request.minOrderQty; supplier.BANK_NAME = request.bankName?.Trim();

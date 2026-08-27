@@ -16,6 +16,9 @@ public class PurchaseOrderDto
     /// <summary>供应商编号</summary>
     public int? supplierId { get; set; }
 
+    /// <summary>供应商名称</summary>
+    public string? supplierName { get; set; }
+
     /// <summary>采购日期</summary>
     public DateTime? purchaseDate { get; set; }
 

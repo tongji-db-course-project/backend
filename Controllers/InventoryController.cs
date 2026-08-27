@@ -24,12 +24,13 @@ public class InventoryController : ControllerBase
         [FromQuery] int size = 10,
         [FromQuery] string? keyword = null,
         [FromQuery] string? status = null,
-        [FromQuery] int? productId = null)
+        [FromQuery] int? productId = null,
+        [FromQuery] int? warehouseId = null)
     {
         return await ExecuteAsync(async () =>
             ApiResponse<PageResult<InventoryDto>>.Ok(
                 await _inventoryService.ListInventoryAsync(
-                    page, size, keyword, status, productId)));
+                    page, size, keyword, status, productId, warehouseId)));
     }
 
     [HttpGet("products/{productId:int}", Name = "getInventoryByProduct")]
@@ -83,12 +84,13 @@ public class InventoryController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] string? keyword = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] int? warehouseId = null)
     {
         return await ExecuteAsync(async () =>
             ApiResponse<PageResult<InventoryDto>>.Ok(
                 await _inventoryService.ListWarningAsync(
-                    page, size, keyword, status)));
+                    page, size, keyword, status, warehouseId)));
     }
 
     [HttpGet("purchase-suggestions", Name = "listPurchaseSuggestions")]

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[ApiController, Route("returns"), Authorize]
+[ApiController, Route("returns"), Route("return-orders"), Authorize]
 public class ReturnsController : ControllerBase
 {
     private readonly IReturnService _service;
@@ -20,6 +20,9 @@ public class ReturnsController : ControllerBase
     public async Task<IActionResult> Get(int returnId) => await Execute(() => _service.GetAsync(returnId));
     [HttpPost("{returnId:int}/confirm")]
     public async Task<IActionResult> Confirm(int returnId) => await Execute(() => _service.ConfirmAsync(returnId));
+    [HttpPost("{returnId:int}/reject")]
+    public async Task<IActionResult> Reject(int returnId, [FromBody] RejectReturnRequest? request) =>
+        await Execute(() => _service.RejectAsync(returnId, request));
     [HttpGet("{returnId:int}/timeline")]
     public async Task<IActionResult> Timeline(int returnId) => await Execute(() => _service.GetTimelineAsync(returnId));
 

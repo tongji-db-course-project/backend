@@ -4,7 +4,7 @@ namespace backend.Services;
 
 public interface ISupplierService
 {
-    Task<PageResult<SupplierDto>> ListAsync(int page, int size, string? keyword, string? status);
+    Task<PageResult<SupplierDto>> ListAsync(int page, int size, string? keyword, string? status, string? creditLevel);
     Task<SupplierDto> GetAsync(int supplierId);
     Task<SupplierDto> CreateAsync(SaveSupplierRequest request);
     Task<SupplierDto> UpdateAsync(int supplierId, SaveSupplierRequest request);

@@ -7,6 +7,7 @@ public class SupplierDto
     public int supplierId { get; set; }
     public string supplierName { get; set; } = string.Empty;
     public string? contactPerson { get; set; }
+    public string? contactName { get; set; }
     public string? phone { get; set; }
     public string? email { get; set; }
     public string? address { get; set; }
@@ -22,6 +23,7 @@ public class SaveSupplierRequest
 {
     [Required, StringLength(100)] public string supplierName { get; set; } = string.Empty;
     [StringLength(50)] public string? contactPerson { get; set; }
+    [StringLength(50)] public string? contactName { get; set; }
     [StringLength(20)] public string? phone { get; set; }
     [EmailAddress, StringLength(100)] public string? email { get; set; }
     [StringLength(200)] public string? address { get; set; }

@@ -152,6 +152,29 @@ public class ReturnService : IReturnService
         return await GetAsync(returnId);
     }
 
+    public async Task<ReturnOrderDto> RejectAsync(int returnId, RejectReturnRequest? request)
+    {
+        var order = await _db.RETURN_ORDERs.FirstOrDefaultAsync(x => x.RETURN_ID == returnId)
+            ?? throw new KeyNotFoundException("退货单不存在");
+        if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
+
+        var operatorId = request?.operatorId ?? order.OPERATOR_ID;
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId))
+            throw new KeyNotFoundException("经办人不存在");
+
+        var now = DateTime.Now;
+        order.STATUS = "已拒绝";
+        order.UPDATE_TIME = now;
+        if (!string.IsNullOrWhiteSpace(request?.remark)) order.REMARK = request.remark.Trim();
+        _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
+        {
+            ORDER_TYPE = "退货单", ORDER_ID = returnId, OLD_STATUS = "待处理", NEW_STATUS = "已拒绝",
+            OPERATOR_ID = operatorId, CHANGE_TIME = now, REMARK = request?.remark?.Trim() ?? "拒绝退货申请"
+        });
+        await _db.SaveChangesAsync();
+        return await GetAsync(returnId);
+    }
+
     public async Task<IReadOnlyList<OrderStatusLogDto>> GetTimelineAsync(int returnId)
     {
         if (!await _db.RETURN_ORDERs.AsNoTracking().AnyAsync(x => x.RETURN_ID == returnId)) throw new KeyNotFoundException("退货单不存在");
