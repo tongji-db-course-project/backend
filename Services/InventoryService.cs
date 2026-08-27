@@ -23,12 +23,12 @@ public class InventoryService : IInventoryService
     }
 
     public async Task<PageResult<InventoryDto>> ListInventoryAsync(
-        int page, int size, string? keyword, string? status, int? productId)
+        int page, int size, string? keyword, string? status, int? productId, int? warehouseId)
     {
         NormalizePage(ref page, ref size);
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var resolvedWarehouseId = await ResolveWarehouseIdAsync(warehouseId);
 
-        var query = BuildInventoryQuery(warehouseId, keyword, status, productId);
+        var query = BuildInventoryQuery(resolvedWarehouseId, keyword, status, productId);
         var total = await query.CountAsync();
         var list = await query
             .OrderBy(x => x.PRODUCT_ID)
@@ -85,12 +85,12 @@ public class InventoryService : IInventoryService
     }
 
     public async Task<PageResult<InventoryDto>> ListWarningAsync(
-        int page, int size, string? keyword, string? status)
+        int page, int size, string? keyword, string? status, int? warehouseId)
     {
         NormalizePage(ref page, ref size);
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var resolvedWarehouseId = await ResolveWarehouseIdAsync(warehouseId);
 
-        var query = BuildInventoryQuery(warehouseId, keyword, status, null)
+        var query = BuildInventoryQuery(resolvedWarehouseId, keyword, status, null)
             .Where(x => x.PRODUCT.STOCK_WARNING != null &&
                         x.CURRENT_STOCK <= x.PRODUCT.STOCK_WARNING);
 
@@ -335,6 +335,15 @@ public class InventoryService : IInventoryService
             > 1 => throw new BusinessException(409, "单仓库模式下只能配置一个启用仓库"),
             _ => warehouseIds[0]
         };
+    }
+
+    private async Task<int> ResolveWarehouseIdAsync(int? warehouseId)
+    {
+        if (!warehouseId.HasValue) return await GetDefaultWarehouseIdAsync();
+        if (warehouseId.Value <= 0) throw new BusinessException(400, "仓库编号必须大于0");
+        if (!await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == warehouseId.Value))
+            throw new KeyNotFoundException("仓库不存在");
+        return warehouseId.Value;
     }
 
     private static InventoryDto MapInventory(INVENTORY inventory) => new()

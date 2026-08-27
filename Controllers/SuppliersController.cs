@@ -12,8 +12,14 @@ public class SuppliersController : ControllerBase
     public SuppliersController(ISupplierService service) => _service = service;
 
     [HttpGet]
-    public async Task<IActionResult> List(int page = 1, int size = 10, string? keyword = null, string? status = null) =>
-        Ok(ApiResponse<PageResult<SupplierDto>>.Ok(await _service.ListAsync(page, size, keyword, status)));
+    public async Task<IActionResult> List(
+        int page = 1,
+        int size = 10,
+        string? keyword = null,
+        string? status = null,
+        string? creditLevel = null) =>
+        Ok(ApiResponse<PageResult<SupplierDto>>.Ok(
+            await _service.ListAsync(page, size, keyword, status, creditLevel)));
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SaveSupplierRequest request) =>
