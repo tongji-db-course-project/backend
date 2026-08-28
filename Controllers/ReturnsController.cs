@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[ApiController, Route("returns"), Authorize]
+[ApiController, Route("return-orders"), Authorize]
 public class ReturnsController : ControllerBase
 {
     private readonly IReturnService _service;
@@ -20,6 +20,18 @@ public class ReturnsController : ControllerBase
     public async Task<IActionResult> Get(int returnId) => await Execute(() => _service.GetAsync(returnId));
     [HttpPost("{returnId:int}/confirm")]
     public async Task<IActionResult> Confirm(int returnId) => await Execute(() => _service.ConfirmAsync(returnId));
+    [HttpPost("{returnId:int}/reject")]
+    public async Task<IActionResult> Reject(int returnId, [FromBody] RejectReturnRequest request)
+    {
+        var approverId = request?.approverId ?? 0;
+        if (approverId <= 0)
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out var uid) && uid > 0) approverId = uid;
+        }
+        if (approverId <= 0) return BadRequest(ApiResponse<object>.Fail(400, "无法识别审批人"));
+        return await Execute(() => _service.RejectAsync(returnId, approverId, request?.remark));
+    }
     [HttpGet("{returnId:int}/timeline")]
     public async Task<IActionResult> Timeline(int returnId) => await Execute(() => _service.GetTimelineAsync(returnId));
 
@@ -30,4 +42,10 @@ public class ReturnsController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ApiResponse<object>.Fail(404, ex.Message)); }
         catch (InvalidOperationException ex) { return Conflict(ApiResponse<object>.Fail(409, ex.Message)); }
     }
+}
+
+public class RejectReturnRequest
+{
+    public int approverId { get; set; }
+    public string? remark { get; set; }
 }

@@ -39,7 +39,7 @@ public class SaleService : ISaleService
                 memberId = x.MEMBER_ID,
                 memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
                 userId = x.USER_ID,
-                cashierName = x.USER.REAL_NAME,
+                cashierName = x.USER != null ? x.USER.REAL_NAME : null,
                 saleDate = x.SALE_DATE,
                 totalAmount = x.TOTAL_AMOUNT ?? 0,
                 discountAmount = x.DISCOUNT_AMOUNT ?? 0,
@@ -60,7 +60,7 @@ public class SaleService : ISaleService
                 memberId = x.MEMBER_ID,
                 memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
                 userId = x.USER_ID,
-                cashierName = x.USER.REAL_NAME,
+                cashierName = x.USER != null ? x.USER.REAL_NAME : null,
                 saleDate = x.SALE_DATE,
                 totalAmount = x.TOTAL_AMOUNT ?? 0,
                 discountAmount = x.DISCOUNT_AMOUNT ?? 0,
@@ -68,7 +68,7 @@ public class SaleService : ISaleService
                 payType = x.PAY_TYPE,
                 status = x.STATUS,
                 couponId = x.MEMBER_COUPONs.Select(c => (int?)c.COUPON_ID).FirstOrDefault(),
-                couponName = x.MEMBER_COUPONs.Select(c => c.TEMPLATE.COUPON_NAME).FirstOrDefault(),
+                couponName = x.MEMBER_COUPONs.Select(c => c.TEMPLATE != null ? c.TEMPLATE.COUPON_NAME : null).FirstOrDefault(),
                 promotionDiscount = x.PROMOTION_DISCOUNT ?? 0,
                 memberDiscount = x.MEMBER_DISCOUNT ?? 0,
                 couponDeduct = x.COUPON_DEDUCT ?? 0,
@@ -78,7 +78,7 @@ public class SaleService : ISaleService
                 items = x.SALE_ORDER_DETAILs.Select(d => new SaleDetailItemDto
                 {
                     productId = d.PRODUCT_ID,
-                    productName = d.PRODUCT.PRODUCT_NAME,
+                    productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : null,
                     quantity = d.SALE_QUANTITY ?? 0,
                     salePrice = d.SALE_PRICE ?? 0,
                     subtotal = (d.SALE_PRICE ?? 0) * (d.SALE_QUANTITY ?? 0)
