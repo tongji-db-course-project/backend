@@ -5,14 +5,14 @@ namespace backend.Services;
 public interface IInventoryService
 {
     Task<PageResult<InventoryDto>> ListInventoryAsync(
-        int page, int size, string? keyword, string? status, int? productId);
+        int page, int size, string? keyword, string? status, int? productId, int? warehouseId);
 
     Task<InventoryDto> GetInventoryAsync(int inventoryId);
 
     Task<InventoryDto> GetInventoryByProductAsync(int productId);
 
     Task<PageResult<InventoryDto>> ListWarningAsync(
-        int page, int size, string? keyword, string? status);
+        int page, int size, string? keyword, string? status, int? warehouseId);
 
     Task<PageResult<InventoryRecordDto>> ListRecordsAsync(
         int page, int size, string? keyword, int? productId, string? recordType);

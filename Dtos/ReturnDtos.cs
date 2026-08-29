@@ -46,3 +46,9 @@ public class CreateReturnDetailRequest
     [Range(1, int.MaxValue)] public int quantity { get; set; }
     public decimal? refundPrice { get; set; }
 }
+
+public class RejectReturnRequest
+{
+    [Range(1, int.MaxValue)] public int? operatorId { get; set; }
+    [MaxLength(200)] public string? remark { get; set; }
+}
