@@ -211,37 +211,19 @@ public class ReturnService : IReturnService
         return await GetAsync(returnId);
     }
 
-    // 冲突合并后实现 = feature-zzy(事务 + FOR UPDATE 并发保护 + transaction.Commit)
-    //              + dev(经办人数据库存在性校验 + 写回 RETURN_ORDER.REMARK + 默认拒绝文案)
     public async Task<ReturnOrderDto> RejectAsync(int returnId, int operatorId, string? remark)
     {
-        // 经办人合法性校验（dev 版新增，避免越界写一个不存在的 USER_ID 到状态日志里）
-        if (operatorId <= 0) throw new ArgumentException("经办人不存在");
-        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId))
-            throw new KeyNotFoundException("经办人不存在");
-
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
         var order = await _db.RETURN_ORDERs.FirstOrDefaultAsync(x => x.RETURN_ID == returnId)
             ?? throw new KeyNotFoundException("退货单不存在");
         if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
-
         var now = DateTime.Now;
-        var trimmedRemark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
-        order.STATUS = "已拒绝";
-        order.UPDATE_TIME = now;
-        // 写回 REMARK 到退货单头（dev 版新增，避免备注只留在状态日志、列表/详情页读 remark 看不到）
-        if (trimmedRemark != null) order.REMARK = trimmedRemark;
+        order.STATUS = "已拒绝"; order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "退货单",
-            ORDER_ID = returnId,
-            OLD_STATUS = "待处理",
-            NEW_STATUS = "已拒绝",
-            OPERATOR_ID = operatorId,
-            CHANGE_TIME = now,
-            // 默认文案统一为「拒绝退货申请」（dev 版新文案，兼容未传 remark 时状态时间轴不空）
-            REMARK = trimmedRemark ?? "拒绝退货申请"
+            ORDER_TYPE = "退货单", ORDER_ID = returnId, OLD_STATUS = "待处理", NEW_STATUS = "已拒绝",
+            OPERATOR_ID = operatorId, CHANGE_TIME = now, REMARK = string.IsNullOrWhiteSpace(remark) ? "拒绝退货" : remark.Trim()
         });
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
