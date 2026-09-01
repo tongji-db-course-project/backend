@@ -21,6 +21,16 @@ public partial class DAILY_SETTLEMENT
     public decimal? TOTAL_SALES { get; set; }
 
     /// <summary>
+    /// 当日实际完成的退款金额
+    /// </summary>
+    public decimal? REFUND_AMOUNT { get; set; }
+
+    /// <summary>
+    /// 当日净销售额（销售实收减退款金额）
+    /// </summary>
+    public decimal? NET_SALES { get; set; }
+
+    /// <summary>
     /// 现金实收金额
     /// </summary>
     public decimal? CASH_AMOUNT { get; set; }

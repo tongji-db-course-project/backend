@@ -29,6 +29,8 @@ public class DailySettlementDto
     public int settlementId { get; set; }
     public DateTime settlementDate { get; set; }
     public decimal totalSales { get; set; }
+    public decimal refundAmount { get; set; }
+    public decimal netSales { get; set; }
     public decimal cashAmount { get; set; }
     public decimal wechatAmount { get; set; }
     public decimal alipayAmount { get; set; }

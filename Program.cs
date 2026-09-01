@@ -55,6 +55,7 @@ builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<ISaleService, SaleService>();
 builder.Services.AddScoped<IPointService, PointService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+builder.Services.AddHostedService<DailySettlementHostedService>();
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ISettlementService, SettlementService>();

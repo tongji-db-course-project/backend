@@ -344,6 +344,9 @@ public class StatisticsService : IStatisticsService
     public async Task<DailySettlementDto> GenerateDailySettlementAsync(DateTime date)
     {
         var day = date.Date;
+        var shanghaiToday = ShanghaiNow().Date;
+        if (day >= shanghaiToday)
+            throw new ArgumentException("只能生成已经闭店的历史营业日日结");
         var existing = await _db.DAILY_SETTLEMENTs.FirstOrDefaultAsync(x => x.SETTLEMENT_DATE == day);
         if (existing is not null) return ToDailySettlementDto(existing);
         var end = day.AddDays(1);
@@ -356,15 +359,20 @@ public class StatisticsService : IStatisticsService
         var couponDeduct = sales.Sum(x => x.COUPON_DEDUCT ?? 0);
         var memberDiscount = sales.Sum(x => x.MEMBER_DISCOUNT ?? 0);
         var promotionDiscount = sales.Sum(x => x.PROMOTION_DISCOUNT ?? 0);
+        // 退款以实际确认完成时间归属营业日，跨日退款不回改原销售日。
+        var refundAmount = await _db.RETURN_ORDERs.AsNoTracking()
+            .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
+            .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
+        var totalSales = sales.Sum(x => x.PAID_AMOUNT ?? 0);
         var settlement = new DAILY_SETTLEMENT
         {
-            SETTLEMENT_DATE = day, TOTAL_SALES = sales.Sum(x => x.PAID_AMOUNT ?? 0),
-            CASH_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("现金")).Sum(x => x.PAID_AMOUNT ?? 0),
-            WECHAT_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("微信")).Sum(x => x.PAID_AMOUNT ?? 0),
-            ALIPAY_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("支付宝")).Sum(x => x.PAID_AMOUNT ?? 0),
+            SETTLEMENT_DATE = day, TOTAL_SALES = totalSales,
+            REFUND_AMOUNT = refundAmount, NET_SALES = totalSales - refundAmount,
+            // 日结不区分支付方式；旧字段保留为 0，仅用于兼容已有数据库结构和客户端。
+            CASH_AMOUNT = 0, WECHAT_AMOUNT = 0, ALIPAY_AMOUNT = 0,
             PROMOTION_DISCOUNT = promotionDiscount, MEMBER_DISCOUNT = memberDiscount, COUPON_DEDUCT = couponDeduct,
             POINT_DEDUCT = pointDeduct, POINT_CONSUMED = pointConsumed,
-            ORDER_COUNT = sales.Count, STATUS = "已生成", CREATE_TIME = DateTime.Now
+            ORDER_COUNT = sales.Count, STATUS = "已生成", CREATE_TIME = ShanghaiNow()
         };
         _db.DAILY_SETTLEMENTs.Add(settlement);
         await _db.SaveChangesAsync();
@@ -381,9 +389,22 @@ public class StatisticsService : IStatisticsService
     private static DailySettlementDto ToDailySettlementDto(DAILY_SETTLEMENT x) => new()
     {
         settlementId = x.SETTLEMENT_ID, settlementDate = x.SETTLEMENT_DATE, totalSales = x.TOTAL_SALES ?? 0,
+        refundAmount = x.REFUND_AMOUNT ?? 0, netSales = x.NET_SALES ?? ((x.TOTAL_SALES ?? 0) - (x.REFUND_AMOUNT ?? 0)),
         cashAmount = x.CASH_AMOUNT ?? 0, wechatAmount = x.WECHAT_AMOUNT ?? 0, alipayAmount = x.ALIPAY_AMOUNT ?? 0,
         promotionDiscount = x.PROMOTION_DISCOUNT ?? 0, memberDiscount = x.MEMBER_DISCOUNT ?? 0,
         couponDeduct = x.COUPON_DEDUCT ?? 0, pointDeduct = x.POINT_DEDUCT ?? 0, pointConsumed = x.POINT_CONSUMED ?? 0,
         orderCount = x.ORDER_COUNT ?? 0, status = x.STATUS ?? string.Empty, createTime = x.CREATE_TIME
     };
+
+    private static DateTime ShanghaiNow()
+    {
+        var zone = FindShanghaiTimeZone();
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
+    }
+
+    internal static TimeZoneInfo FindShanghaiTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Shanghai"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("China Standard Time"); }
+    }
 }
