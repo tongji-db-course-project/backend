@@ -195,6 +195,10 @@ public class ProductService : IProductService
     public async Task<ProductListItemDto> CreateProductAsync(ProductDto dto)
     {
         var productName = RequireText(dto.productName, "商品名称不能为空");
+        var isPromotion = NormalizeOptional(dto.isPromotion) ?? "否";
+
+        if (isPromotion is not ("是" or "否"))
+            throw new BusinessException(400, "促销状态只能是是或否");
 
         // 验证条码唯一性
         if (!string.IsNullOrWhiteSpace(dto.barcode))
@@ -221,6 +225,8 @@ public class ProductService : IProductService
             SPECIFICATION = dto.specification?.Trim(),
             PURCHASE_PRICE = dto.purchasePrice,
             SALE_PRICE = dto.salePrice,
+            IS_PROMOTION = isPromotion,
+            PROMOTION_PRICE = isPromotion == "是" ? dto.promotionPrice : null,
             STOCK_WARNING = dto.stockWarning,
             UNIT = dto.unit?.Trim(),
             STATUS = dto.status?.Trim() ?? "在售"
@@ -279,6 +285,21 @@ public class ProductService : IProductService
 
         if (dto.salePrice.HasValue)
             product.SALE_PRICE = dto.salePrice;
+
+        if (dto.isPromotion != null)
+        {
+            var isPromotion = RequireText(dto.isPromotion, "促销状态不能为空");
+
+            if (isPromotion is not ("是" or "否"))
+                throw new BusinessException(400, "促销状态只能是是或否");
+
+            product.IS_PROMOTION = isPromotion;
+            product.PROMOTION_PRICE = isPromotion == "是" ? dto.promotionPrice : null;
+        }
+        else if (dto.promotionPrice.HasValue)
+        {
+            product.PROMOTION_PRICE = dto.promotionPrice;
+        }
 
         if (dto.stockWarning.HasValue)
             product.STOCK_WARNING = dto.stockWarning;

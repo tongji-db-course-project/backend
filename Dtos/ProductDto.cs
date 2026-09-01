@@ -15,6 +15,10 @@ public class ProductDto
 
     public decimal? salePrice { get; set; }
 
+    public string? isPromotion { get; set; }
+
+    public decimal? promotionPrice { get; set; }
+
     public int? stockWarning { get; set; }
 
     public string? unit { get; set; }
