@@ -66,9 +66,15 @@ public class ReturnService : IReturnService
         var now = DateTime.Now;
         var order = new RETURN_ORDER
         {
-            RETURN_NO = $"RT{now:yyyyMMddHHmmssfff}{Guid.NewGuid():N}"[..30], SALE_ID = sale.SALE_ID,
-            MEMBER_ID = sale.MEMBER_ID, OPERATOR_ID = request.operatorId, RETURN_DATE = now,
-            STATUS = "待处理", CREATE_TIME = now, UPDATE_TIME = now, REMARK = request.remark?.Trim()
+            RETURN_NO = $"RT{now:yyyyMMddHHmmssfff}{Guid.NewGuid():N}"[..30],
+            SALE_ID = sale.SALE_ID,
+            MEMBER_ID = sale.MEMBER_ID,
+            OPERATOR_ID = request.operatorId,
+            RETURN_DATE = now,
+            STATUS = "待处理",
+            CREATE_TIME = now,
+            UPDATE_TIME = now,
+            REMARK = request.remark?.Trim()
         };
         // --- 精确退款计算：先按"本次退货金额×ratio"得到每条精确目标应退，再做尾差吸纳 ---
         // 关键修正：originalLineAmount 使用 (单价 × 本次申请退货数量)，绝不能用原销售的 SALE_QUANTITY，
@@ -123,8 +129,13 @@ public class ReturnService : IReturnService
         await _db.SaveChangesAsync();
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "退货单", ORDER_ID = order.RETURN_ID, OLD_STATUS = null, NEW_STATUS = "待处理",
-            OPERATOR_ID = request.operatorId, CHANGE_TIME = now, REMARK = request.remark
+            ORDER_TYPE = "退货单",
+            ORDER_ID = order.RETURN_ID,
+            OLD_STATUS = null,
+            NEW_STATUS = "待处理",
+            OPERATOR_ID = request.operatorId,
+            CHANGE_TIME = now,
+            REMARK = request.remark
         });
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -154,9 +165,14 @@ public class ReturnService : IReturnService
             inventory.CURRENT_STOCK += detail.QUANTITY; inventory.LAST_UPDATE_TIME = now;
             _db.INVENTORY_RECORDs.Add(new INVENTORY_RECORD
             {
-                PRODUCT_ID = detail.PRODUCT_ID, RECORD_TYPE = "退货", SOURCE_NO = order.RETURN_NO,
-                CHANGE_QTY = detail.QUANTITY, REMAIN_QTY = inventory.CURRENT_STOCK,
-                OPERATOR_ID = order.OPERATOR_ID, RECORD_TIME = now, REMARK = "销售退货入库"
+                PRODUCT_ID = detail.PRODUCT_ID,
+                RECORD_TYPE = "退货",
+                SOURCE_NO = order.RETURN_NO,
+                CHANGE_QTY = detail.QUANTITY,
+                REMAIN_QTY = inventory.CURRENT_STOCK,
+                OPERATOR_ID = order.OPERATOR_ID,
+                RECORD_TIME = now,
+                REMARK = "销售退货入库"
             });
         }
 
@@ -191,8 +207,12 @@ public class ReturnService : IReturnService
                 member.POINTS = (member.POINTS ?? 0) + reversal;
                 _db.POINT_RECORDs.Add(new POINT_RECORD
                 {
-                    MEMBER_ID = member.MEMBER_ID, SALE_ID = order.SALE_ID, CHANGE_TYPE = reversal > 0 ? "增加" : "扣减",
-                    CHANGE_POINTS = reversal, REMAIN_POINTS = member.POINTS.Value, RECORD_TIME = now,
+                    MEMBER_ID = member.MEMBER_ID,
+                    SALE_ID = order.SALE_ID,
+                    CHANGE_TYPE = reversal > 0 ? "增加" : "扣减",
+                    CHANGE_POINTS = reversal,
+                    REMAIN_POINTS = member.POINTS.Value,
+                    RECORD_TIME = now,
                     REMARK = $"退货单 {order.RETURN_NO} 积分冲销"
                 });
             }
@@ -201,8 +221,13 @@ public class ReturnService : IReturnService
         order.STATUS = "已完成"; order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "退货单", ORDER_ID = returnId, OLD_STATUS = "待处理", NEW_STATUS = "已完成",
-            OPERATOR_ID = order.OPERATOR_ID, CHANGE_TIME = now, REMARK = "确认退货并完成退款、入库及积分冲销"
+            ORDER_TYPE = "退货单",
+            ORDER_ID = returnId,
+            OLD_STATUS = "待处理",
+            NEW_STATUS = "已完成",
+            OPERATOR_ID = order.OPERATOR_ID,
+            CHANGE_TIME = now,
+            REMARK = "确认退货并完成退款、入库及积分冲销"
         });
         await _db.SaveChangesAsync();
         if (order.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, order.MEMBER_ID.Value, now);
@@ -236,8 +261,14 @@ public class ReturnService : IReturnService
         return await _db.ORDER_STATUS_LOGs.AsNoTracking().Where(x => x.ORDER_TYPE == "退货单" && x.ORDER_ID == returnId)
             .OrderBy(x => x.CHANGE_TIME).ThenBy(x => x.LOG_ID).Select(x => new OrderStatusLogDto
             {
-                logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID, oldStatus = x.OLD_STATUS,
-                newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID, changeTime = x.CHANGE_TIME, remark = x.REMARK
+                logId = x.LOG_ID,
+                orderType = x.ORDER_TYPE,
+                orderId = x.ORDER_ID,
+                oldStatus = x.OLD_STATUS,
+                newStatus = x.NEW_STATUS,
+                operatorId = x.OPERATOR_ID,
+                changeTime = x.CHANGE_TIME,
+                remark = x.REMARK
             }).ToListAsync();
     }
 

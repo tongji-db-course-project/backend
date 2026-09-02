@@ -80,12 +80,21 @@ public class SupplierService : ISupplierService
         var list = await query.OrderBy(x => x.PRODUCT_ID).Skip((page - 1) * size).Take(size)
             .Select(x => new ProductListItemDto
             {
-                productId = x.PRODUCT_ID, productName = x.PRODUCT_NAME, barcode = x.BARCODE,
-                specification = x.SPECIFICATION, purchasePrice = x.PURCHASE_PRICE, salePrice = x.SALE_PRICE,
-                stockWarning = x.STOCK_WARNING, unit = x.UNIT, status = x.STATUS,
-                categoryId = x.CATEGORY_ID, categoryName = x.CATEGORY.CATEGORY_NAME,
-                supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER.SUPPLIER_NAME,
-                isPromotion = x.IS_PROMOTION, promotionPrice = x.PROMOTION_PRICE,
+                productId = x.PRODUCT_ID,
+                productName = x.PRODUCT_NAME,
+                barcode = x.BARCODE,
+                specification = x.SPECIFICATION,
+                purchasePrice = x.PURCHASE_PRICE,
+                salePrice = x.SALE_PRICE,
+                stockWarning = x.STOCK_WARNING,
+                unit = x.UNIT,
+                status = x.STATUS,
+                categoryId = x.CATEGORY_ID,
+                categoryName = x.CATEGORY.CATEGORY_NAME,
+                supplierId = x.SUPPLIER_ID,
+                supplierName = x.SUPPLIER.SUPPLIER_NAME,
+                isPromotion = x.IS_PROMOTION,
+                promotionPrice = x.PROMOTION_PRICE,
                 currentStock = x.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0
             }).ToListAsync();
         return new PageResult<ProductListItemDto> { list = list, total = total, page = page, size = size };
@@ -123,18 +132,31 @@ public class SupplierService : ISupplierService
         }
         return new SupplierPerformanceDto
         {
-            supplierId = supplierId, supplierName = supplier.SUPPLIER_NAME, stockedOrderCount = stocked,
-            returnedOrderCount = returned, returnRate = returnRate, onTimeRate = onTimeRate, creditLevel = level
+            supplierId = supplierId,
+            supplierName = supplier.SUPPLIER_NAME,
+            stockedOrderCount = stocked,
+            returnedOrderCount = returned,
+            returnRate = returnRate,
+            onTimeRate = onTimeRate,
+            creditLevel = level
         };
     }
 
     private static IQueryable<SupplierDto> Project(IQueryable<SUPPLIER> query) => query.Select(x => new SupplierDto
     {
-        supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER_NAME,
-        contactPerson = x.CONTACT_NAME, contactName = x.CONTACT_NAME,
-        phone = x.PHONE, email = x.EMAIL, address = x.ADDRESS, creditLevel = x.CREDIT_LEVEL,
-        paymentCycle = x.PAYMENT_CYCLE, minOrderQty = x.MIN_ORDER_QTY, bankName = x.BANK_NAME,
-        bankAccount = x.BANK_ACCOUNT, status = x.STATUS
+        supplierId = x.SUPPLIER_ID,
+        supplierName = x.SUPPLIER_NAME,
+        contactPerson = x.CONTACT_NAME,
+        contactName = x.CONTACT_NAME,
+        phone = x.PHONE,
+        email = x.EMAIL,
+        address = x.ADDRESS,
+        creditLevel = x.CREDIT_LEVEL,
+        paymentCycle = x.PAYMENT_CYCLE,
+        minOrderQty = x.MIN_ORDER_QTY,
+        bankName = x.BANK_NAME,
+        bankAccount = x.BANK_ACCOUNT,
+        status = x.STATUS
     });
 
     private async Task EnsureNameUniqueAsync(string name, int? excludedId)
