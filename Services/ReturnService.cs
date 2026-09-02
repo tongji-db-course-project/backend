@@ -118,7 +118,9 @@ public class ReturnService : IReturnService
                 var subtotal = Math.Round(unitPrice * qty, 2, MidpointRounding.AwayFromZero);
                 order.RETURN_ORDER_DETAILs.Add(new RETURN_ORDER_DETAIL
                 {
-                    PRODUCT_ID = productId, QUANTITY = qty, REFUND_PRICE = unitPrice,
+                    PRODUCT_ID = productId,
+                    QUANTITY = qty,
+                    REFUND_PRICE = unitPrice,
                     SUBTOTAL = subtotal
                 });
                 subtotalSum += subtotal;
@@ -247,8 +249,13 @@ public class ReturnService : IReturnService
         order.STATUS = "已拒绝"; order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "退货单", ORDER_ID = returnId, OLD_STATUS = "待处理", NEW_STATUS = "已拒绝",
-            OPERATOR_ID = operatorId, CHANGE_TIME = now, REMARK = string.IsNullOrWhiteSpace(remark) ? "拒绝退货" : remark.Trim()
+            ORDER_TYPE = "退货单",
+            ORDER_ID = returnId,
+            OLD_STATUS = "待处理",
+            NEW_STATUS = "已拒绝",
+            OPERATOR_ID = operatorId,
+            CHANGE_TIME = now,
+            REMARK = string.IsNullOrWhiteSpace(remark) ? "拒绝退货" : remark.Trim()
         });
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -274,15 +281,28 @@ public class ReturnService : IReturnService
 
     private static IQueryable<ReturnOrderDto> Project(IQueryable<RETURN_ORDER> query, bool details) => query.Select(x => new ReturnOrderDto
     {
-        returnId = x.RETURN_ID, returnNo = x.RETURN_NO, saleId = x.SALE_ID, saleNo = x.SALE.SALE_NO,
-        memberId = x.MEMBER_ID, memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
-        operatorId = x.OPERATOR_ID, operatorName = x.OPERATOR != null ? x.OPERATOR.REAL_NAME : null, returnDate = x.RETURN_DATE,
-        refundAmount = x.REFUND_AMOUNT, status = x.STATUS, createTime = x.CREATE_TIME, updateTime = x.UPDATE_TIME,
-        remark = x.REMARK, items = details ? x.RETURN_ORDER_DETAILs.Select(d => new ReturnOrderDetailDto
+        returnId = x.RETURN_ID,
+        returnNo = x.RETURN_NO,
+        saleId = x.SALE_ID,
+        saleNo = x.SALE.SALE_NO,
+        memberId = x.MEMBER_ID,
+        memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
+        operatorId = x.OPERATOR_ID,
+        operatorName = x.OPERATOR != null ? x.OPERATOR.REAL_NAME : null,
+        returnDate = x.RETURN_DATE,
+        refundAmount = x.REFUND_AMOUNT,
+        status = x.STATUS,
+        createTime = x.CREATE_TIME,
+        updateTime = x.UPDATE_TIME,
+        remark = x.REMARK,
+        items = details ? x.RETURN_ORDER_DETAILs.Select(d => new ReturnOrderDetailDto
         {
-            productId = d.PRODUCT_ID, productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : null!,
-            barcode = d.PRODUCT != null ? d.PRODUCT.BARCODE : null, quantity = d.QUANTITY,
-            refundPrice = d.REFUND_PRICE, subtotal = d.SUBTOTAL
+            productId = d.PRODUCT_ID,
+            productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : null!,
+            barcode = d.PRODUCT != null ? d.PRODUCT.BARCODE : null,
+            quantity = d.QUANTITY,
+            refundPrice = d.REFUND_PRICE,
+            subtotal = d.SUBTOTAL
         }).ToList() : null
     });
 
