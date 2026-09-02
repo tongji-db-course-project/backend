@@ -47,17 +47,13 @@ public class CreateReturnDetailRequest
     public decimal? refundPrice { get; set; }
 }
 
-/// <summary>
-/// 拒绝退货申请请求 DTO（唯一版本）。为兼容两种历史调用方契约，字段 approverId / operatorId 均接受：
-/// - 前端 ReturnApprovalPayload 发送 approverId
-/// - 其他 API 客户端对齐发送 operatorId
-/// 两个字段都在 [1, int.MaxValue] 范围内接受；Controller 会选首个 > 0 的生效。
-/// </summary>
 public class RejectReturnRequest
 {
-    [Range(1, int.MaxValue)] public int approverId { get; set; }
-
+<<<<<<< HEAD
     [Range(1, int.MaxValue)] public int? operatorId { get; set; }
+=======
+    public int approverId { get; set; }
 
+>>>>>>> 707bfbf (修复了账号密码被放入文件与类名重复的bug)
     [MaxLength(200)] public string? remark { get; set; }
 }

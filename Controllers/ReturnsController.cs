@@ -24,8 +24,6 @@ public class ReturnsController : ControllerBase
     public async Task<IActionResult> Reject(int returnId, [FromBody] RejectReturnRequest request)
     {
         var approverId = request?.approverId ?? 0;
-        // 兼容两种调用方：若请求体只传 operatorId（与部分API对齐的字段名），也一样生效
-        if (approverId <= 0 && request?.operatorId.HasValue == true) approverId = request.operatorId.Value;
         if (approverId <= 0)
         {
             var userIdClaim = User.FindFirst("UserId")?.Value;
