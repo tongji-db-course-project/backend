@@ -233,9 +233,14 @@ public class PurchaseReturnService : IPurchaseReturnService
             .OrderBy(x => x.CHANGE_TIME).ThenBy(x => x.LOG_ID)
             .Select(x => new OrderStatusLogDto
             {
-                logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID,
-                oldStatus = x.OLD_STATUS, newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID,
-                changeTime = x.CHANGE_TIME, remark = x.REMARK
+                logId = x.LOG_ID,
+                orderType = x.ORDER_TYPE,
+                orderId = x.ORDER_ID,
+                oldStatus = x.OLD_STATUS,
+                newStatus = x.NEW_STATUS,
+                operatorId = x.OPERATOR_ID,
+                changeTime = x.CHANGE_TIME,
+                remark = x.REMARK
             }).ToListAsync();
     }
 
@@ -293,16 +298,27 @@ public class PurchaseReturnService : IPurchaseReturnService
     private static IQueryable<PurchaseReturnDto> Project(IQueryable<PURCHASE_RETURN_ORDER> query, bool details) =>
         query.Select(x => new PurchaseReturnDto
         {
-            returnId = x.RETURN_ID, returnNo = x.RETURN_NO,
-            purchaseId = x.PURCHASE_ID, purchaseCode = x.PURCHASE.ORDER_CODE,
-            supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER.SUPPLIER_NAME,
-            operatorId = x.OPERATOR_ID, operatorName = x.OPERATOR.REAL_NAME ?? string.Empty,
-            returnDate = x.RETURN_DATE, totalAmount = x.TOTAL_AMOUNT, status = x.STATUS ?? string.Empty,
-            createTime = x.CREATE_TIME, updateTime = x.UPDATE_TIME, remark = x.REMARK,
+            returnId = x.RETURN_ID,
+            returnNo = x.RETURN_NO,
+            purchaseId = x.PURCHASE_ID,
+            purchaseCode = x.PURCHASE.ORDER_CODE,
+            supplierId = x.SUPPLIER_ID,
+            supplierName = x.SUPPLIER.SUPPLIER_NAME,
+            operatorId = x.OPERATOR_ID,
+            operatorName = x.OPERATOR.REAL_NAME ?? string.Empty,
+            returnDate = x.RETURN_DATE,
+            totalAmount = x.TOTAL_AMOUNT,
+            status = x.STATUS ?? string.Empty,
+            createTime = x.CREATE_TIME,
+            updateTime = x.UPDATE_TIME,
+            remark = x.REMARK,
             details = details ? x.PURCHASE_RETURN_ORDER_DETAILs.Select(d => new PurchaseReturnDetailDto
             {
-                productId = d.PRODUCT_ID, productName = d.PRODUCT.PRODUCT_NAME,
-                quantity = d.QUANTITY, returnPrice = d.RETURN_PRICE, subtotal = d.SUBTOTAL
+                productId = d.PRODUCT_ID,
+                productName = d.PRODUCT.PRODUCT_NAME,
+                quantity = d.QUANTITY,
+                returnPrice = d.RETURN_PRICE,
+                subtotal = d.SUBTOTAL
             }).ToList() : null
         });
 
