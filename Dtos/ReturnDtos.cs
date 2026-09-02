@@ -49,11 +49,6 @@ public class CreateReturnDetailRequest
 
 public class RejectReturnRequest
 {
-<<<<<<< HEAD
-    [Range(1, int.MaxValue)] public int? operatorId { get; set; }
-=======
     public int approverId { get; set; }
-
->>>>>>> 707bfbf (修复了账号密码被放入文件与类名重复的bug)
     [MaxLength(200)] public string? remark { get; set; }
 }
