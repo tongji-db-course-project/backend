@@ -359,8 +359,8 @@ public class StatisticsService : IStatisticsService
     public async Task<DailySettlementDto> GenerateDailySettlementAsync(DateTime date)
     {
         var day = date.Date;
-        var shanghaiToday = ShanghaiNow().Date;
-        if (day >= shanghaiToday)
+        var today = DateTime.Now.Date;
+        if (day >= today)
             throw new ArgumentException("只能生成已经闭店的历史营业日日结");
         var existing = await _db.DAILY_SETTLEMENTs.FirstOrDefaultAsync(x => x.SETTLEMENT_DATE == day);
         if (existing is not null) return ToDailySettlementDto(existing);
@@ -430,15 +430,4 @@ public class StatisticsService : IStatisticsService
         createTime = x.CREATE_TIME
     };
 
-    private static DateTime ShanghaiNow()
-    {
-        var zone = FindShanghaiTimeZone();
-        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
-    }
-
-    internal static TimeZoneInfo FindShanghaiTimeZone()
-    {
-        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Shanghai"); }
-        catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("China Standard Time"); }
-    }
 }

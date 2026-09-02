@@ -3,13 +3,12 @@ using Microsoft.EntityFrameworkCore;
 namespace backend.Services;
 
 /// <summary>
-/// 单门店每日营业结转任务。北京时间自然日结束后生成前一日结转，空营业日也会生成。
+/// 单门店每日营业结转任务。服务器本地时间自然日结束后生成前一日结转，空营业日也会生成。
 /// </summary>
 public sealed class DailySettlementHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<DailySettlementHostedService> _logger;
-    private readonly TimeZoneInfo _shanghaiTimeZone = StatisticsService.FindShanghaiTimeZone();
 
     public DailySettlementHostedService(
         IServiceScopeFactory scopeFactory,
@@ -26,8 +25,8 @@ public sealed class DailySettlementHostedService : BackgroundService
             try
             {
                 // 启动时先补齐最近一个已经闭店的营业日；已存在时服务会直接返回。
-                await GenerateAsync(ShanghaiNow().Date.AddDays(-1), stoppingToken);
-                var now = ShanghaiNow();
+                await GenerateAsync(DateTime.Now.Date.AddDays(-1), stoppingToken);
+                var now = DateTime.Now;
                 await Task.Delay(now.Date.AddDays(1) - now, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -61,7 +60,4 @@ public sealed class DailySettlementHostedService : BackgroundService
 
         cancellationToken.ThrowIfCancellationRequested();
     }
-
-    private DateTime ShanghaiNow() =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _shanghaiTimeZone);
 }
