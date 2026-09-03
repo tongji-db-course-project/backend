@@ -18,13 +18,14 @@ public class ReturnOrderDto
     public DateTime? createTime { get; set; }
     public DateTime? updateTime { get; set; }
     public string? remark { get; set; }
-    public List<ReturnOrderDetailDto>? details { get; set; }
+    public List<ReturnOrderDetailDto>? items { get; set; }
 }
 
 public class ReturnOrderDetailDto
 {
     public int productId { get; set; }
     public string productName { get; set; } = string.Empty;
+    public string? barcode { get; set; }
     public int quantity { get; set; }
     public decimal refundPrice { get; set; }
     public decimal subtotal { get; set; }
@@ -48,6 +49,6 @@ public class CreateReturnDetailRequest
 
 public class RejectReturnRequest
 {
-    [Range(1, int.MaxValue)] public int? operatorId { get; set; }
+    public int approverId { get; set; }
     [MaxLength(200)] public string? remark { get; set; }
 }

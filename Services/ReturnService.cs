@@ -46,7 +46,13 @@ public class ReturnService : IReturnService
         if (sale.STATUS != "已完成") throw new InvalidOperationException("仅已完成销售单可以退货");
         if (request.memberId.HasValue && request.memberId != sale.MEMBER_ID) throw new ArgumentException("退货会员与原销售单不一致");
 
-        var requested = request.details.GroupBy(x => x.productId).ToDictionary(x => x.Key, x => x.Sum(d => d.quantity));
+        var requested = new Dictionary<int, int>();
+        foreach (var d in request.details)
+        {
+            if (d.quantity <= 0) throw new ArgumentException($"商品 {d.productId} 的退货数量必须大于 0");
+            requested[d.productId] = requested.GetValueOrDefault(d.productId) + d.quantity;
+        }
+        if (requested.Count == 0) throw new ArgumentException("退货明细不能为空");
         var sold = sale.SALE_ORDER_DETAILs.ToDictionary(x => x.PRODUCT_ID, x => x.SALE_QUANTITY ?? 0);
         if (requested.Keys.Except(sold.Keys).Any()) throw new ArgumentException("退货商品不在原销售单中");
         var returned = await _db.RETURN_ORDER_DETAILs.AsNoTracking()
@@ -70,19 +76,57 @@ public class ReturnService : IReturnService
             UPDATE_TIME = now,
             REMARK = request.remark?.Trim()
         };
-        foreach (var item in requested)
+        // --- 精确退款计算：先按"本次退货金额×ratio"得到每条精确目标应退，再做尾差吸纳 ---
+        // 关键修正：originalLineAmount 使用 (单价 × 本次申请退货数量)，绝不能用原销售的 SALE_QUANTITY，
+        //           否则"退1件也按8件算退款"，既是业务bug也是资金漏洞（多退用户钱）。
+        // 例：sale=49.9×8件=399.20, 实付=379.24, ratio=0.95。退1件 → 目标=Round(49.9×1×0.95)=47.41
+        //                         全退8件 → 目标=Round(49.9×8×0.95)=379.24
+        var ordered = requested.OrderByDescending(kv => kv.Value).ToList();
+        var lines = new List<(int productId, int qty, decimal lineTarget, SALE_ORDER_DETAIL saleLine)>();
+        decimal targetTotal = 0m;
+        foreach (var item in ordered)
         {
             var saleLine = sale.SALE_ORDER_DETAILs.First(x => x.PRODUCT_ID == item.Key);
-            var refundPrice = Math.Round((saleLine.SALE_PRICE ?? 0) * ratio, 2, MidpointRounding.AwayFromZero);
-            order.RETURN_ORDER_DETAILs.Add(new RETURN_ORDER_DETAIL
-            {
-                PRODUCT_ID = item.Key,
-                QUANTITY = item.Value,
-                REFUND_PRICE = refundPrice,
-                SUBTOTAL = refundPrice * item.Value
-            });
+            // 只对本次申请退货的 qty 计算应退金额
+            var thisReturnLineAmount = (saleLine.SALE_PRICE ?? 0m) * item.Value;
+            var lineTarget = Math.Round(thisReturnLineAmount * ratio, 2, MidpointRounding.AwayFromZero);
+            targetTotal += lineTarget;
+            lines.Add((item.Key, item.Value, lineTarget, saleLine));
         }
-        order.REFUND_AMOUNT = order.RETURN_ORDER_DETAILs.Sum(x => x.SUBTOTAL);
+        // 尾差修正：把 targetTotal 与各行合计的差额(一般±0.0x元)全部叠加到数量最大(金额最大)的第一条明细上
+        // (由于每行已经是"先行后反推单价"，此处 targetTotal == 各lineTarget之和；这里仅为逻辑完整性保留)
+        decimal subtotalSum = 0m;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var (productId, qty, lineTarget, _) = lines[i];
+            if (i == lines.Count - 1)
+            {
+                // 最后一条：用"目标总额 - 前面已写入的所有SUBTOTAL"作为该行SUBTOTAL，彻底吸纳尾差(±几分钱)
+                var lastSubtotal = Math.Max(0m, targetTotal - subtotalSum);
+                var lastUnitPrice = Math.Round(lastSubtotal / Math.Max(1, qty), 2, MidpointRounding.AwayFromZero);
+                // 保证单价*数量 = 该行 SUBTOTAL；如果反推差了几分钱就直接落在 SUBTOTAL 字段
+                order.RETURN_ORDER_DETAILs.Add(new RETURN_ORDER_DETAIL
+                {
+                    PRODUCT_ID = productId, QUANTITY = qty, REFUND_PRICE = lastUnitPrice,
+                    SUBTOTAL = lastSubtotal
+                });
+                subtotalSum += lastSubtotal;
+            }
+            else
+            {
+                var unitPrice = Math.Round(lineTarget / Math.Max(1, qty), 2, MidpointRounding.AwayFromZero);
+                var subtotal = Math.Round(unitPrice * qty, 2, MidpointRounding.AwayFromZero);
+                order.RETURN_ORDER_DETAILs.Add(new RETURN_ORDER_DETAIL
+                {
+                    PRODUCT_ID = productId,
+                    QUANTITY = qty,
+                    REFUND_PRICE = unitPrice,
+                    SUBTOTAL = subtotal
+                });
+                subtotalSum += subtotal;
+            }
+        }
+        order.REFUND_AMOUNT = subtotalSum;
         _db.RETURN_ORDERs.Add(order);
         await _db.SaveChangesAsync();
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
@@ -139,9 +183,24 @@ public class ReturnService : IReturnService
             await _db.Database.ExecuteSqlRawAsync("SELECT * FROM MEMBER WHERE MEMBER_ID = {0} FOR UPDATE", order.MEMBER_ID.Value);
             var member = await _db.MEMBERs.FirstAsync(x => x.MEMBER_ID == order.MEMBER_ID.Value);
             var salePoints = await _db.POINT_RECORDs.AsNoTracking().Where(x => x.SALE_ID == order.SALE_ID).ToListAsync();
-            var ratio = order.SALE.TOTAL_AMOUNT.GetValueOrDefault() <= 0 ? 0 :
-                order.RETURN_ORDER_DETAILs.Sum(x => x.SUBTOTAL / Math.Max(0.0001m, order.SALE.PAID_AMOUNT.GetValueOrDefault()));
-            ratio = Math.Clamp(ratio, 0, 1);
+            // 比例=退款对应"原销售行金额" / 销售总金额（避免部分退按金额/Paid 四舍五入，造成比例>1或不对称）
+            var saleLineDict = order.SALE.SALE_ORDER_DETAILs.ToDictionary(d => d.PRODUCT_ID, d => d);
+            decimal refundedSaleAmount = 0;
+            foreach (var detail in order.RETURN_ORDER_DETAILs)
+            {
+                if (saleLineDict.TryGetValue(detail.PRODUCT_ID, out var sl))
+                {
+                    var origQty = sl.SALE_QUANTITY ?? 0;
+                    if (origQty > 0)
+                    {
+                        // 部分退：按"本次退货件数 / 原销售件数"的比例，折算原销售行的金额
+                        var share = Math.Clamp((decimal)detail.QUANTITY / origQty, 0m, 1m);
+                        refundedSaleAmount += (sl.SALE_PRICE ?? 0m) * origQty * share;
+                    }
+                }
+            }
+            var saleTotal = order.SALE.TOTAL_AMOUNT.GetValueOrDefault();
+            var ratio = saleTotal <= 0 ? 0 : Math.Clamp(refundedSaleAmount / saleTotal, 0m, 1m);
             var earned = salePoints.Where(x => x.CHANGE_POINTS > 0).Sum(x => x.CHANGE_POINTS);
             var redeemed = -salePoints.Where(x => x.CHANGE_POINTS < 0).Sum(x => x.CHANGE_POINTS);
             var reversal = (int)Math.Round((redeemed - earned) * ratio, MidpointRounding.AwayFromZero);
@@ -179,20 +238,15 @@ public class ReturnService : IReturnService
         return await GetAsync(returnId);
     }
 
-    public async Task<ReturnOrderDto> RejectAsync(int returnId, RejectReturnRequest? request)
+    public async Task<ReturnOrderDto> RejectAsync(int returnId, int operatorId, string? remark)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
         var order = await _db.RETURN_ORDERs.FirstOrDefaultAsync(x => x.RETURN_ID == returnId)
             ?? throw new KeyNotFoundException("退货单不存在");
         if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
-
-        var operatorId = request?.operatorId ?? order.OPERATOR_ID;
-        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId))
-            throw new KeyNotFoundException("经办人不存在");
-
         var now = DateTime.Now;
-        order.STATUS = "已拒绝";
-        order.UPDATE_TIME = now;
-        if (!string.IsNullOrWhiteSpace(request?.remark)) order.REMARK = request.remark.Trim();
+        order.STATUS = "已拒绝"; order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
             ORDER_TYPE = "退货单",
@@ -201,9 +255,10 @@ public class ReturnService : IReturnService
             NEW_STATUS = "已拒绝",
             OPERATOR_ID = operatorId,
             CHANGE_TIME = now,
-            REMARK = request?.remark?.Trim() ?? "拒绝退货申请"
+            REMARK = string.IsNullOrWhiteSpace(remark) ? "拒绝退货" : remark.Trim()
         });
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return await GetAsync(returnId);
     }
 
@@ -233,17 +288,18 @@ public class ReturnService : IReturnService
         memberId = x.MEMBER_ID,
         memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
         operatorId = x.OPERATOR_ID,
-        operatorName = x.OPERATOR.REAL_NAME,
+        operatorName = x.OPERATOR != null ? x.OPERATOR.REAL_NAME : null,
         returnDate = x.RETURN_DATE,
         refundAmount = x.REFUND_AMOUNT,
         status = x.STATUS,
         createTime = x.CREATE_TIME,
         updateTime = x.UPDATE_TIME,
         remark = x.REMARK,
-        details = details ? x.RETURN_ORDER_DETAILs.Select(d => new ReturnOrderDetailDto
+        items = details ? x.RETURN_ORDER_DETAILs.Select(d => new ReturnOrderDetailDto
         {
             productId = d.PRODUCT_ID,
-            productName = d.PRODUCT.PRODUCT_NAME,
+            productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : null!,
+            barcode = d.PRODUCT != null ? d.PRODUCT.BARCODE : null,
             quantity = d.QUANTITY,
             refundPrice = d.REFUND_PRICE,
             subtotal = d.SUBTOTAL
