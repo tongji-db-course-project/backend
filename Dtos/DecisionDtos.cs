@@ -22,6 +22,9 @@ public class InventoryTurnoverDto
     public decimal averageStock { get; set; }
     public decimal turnoverTimes { get; set; }
     public bool stagnant { get; set; }
+    public decimal? daysOfInventory { get; set; }
+    //周转状态：normal，slow，aged
+    public string status { get; set; } = "normal";
 }
 
 public class DailySettlementDto

@@ -56,7 +56,17 @@ public interface IStatisticsService
     Task<MemberStatistics> GetMemberStatisticsAsync(DateTime? startDate, DateTime? endDate);
 
     Task<List<ProductProfitRankDto>> GetProductProfitRankAsync(DateTime startDate, DateTime endDate);
-    Task<List<InventoryTurnoverDto>> GetInventoryTurnoverAsync(DateTime startDate, DateTime endDate);
+    Task<PageResult<InventoryTurnoverDto>> GetInventoryTurnoverAsync(
+        DateTime startDate,
+        DateTime endDate,
+        int? productId = null,
+        int? categoryId = null,
+        string avgMethod = "simple",
+        decimal slowThreshold = 2,
+        int page = 1,
+        int pageSize = 20,
+        bool onlyWithSales = false);
+
     Task<DailySettlementDto> GenerateDailySettlementAsync(DateTime date);
     Task<DailySettlementDto> GetDailySettlementAsync(DateTime date);
 }
