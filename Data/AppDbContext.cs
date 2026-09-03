@@ -161,6 +161,14 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("0")
                 .HasComment("积分抵扣金额")
                 .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.REFUND_AMOUNT)
+                .HasDefaultValueSql("0")
+                .HasComment("当日实际完成退款金额")
+                .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.NET_SALES)
+                .HasDefaultValueSql("0")
+                .HasComment("当日净销售额（销售实收减退款金额）")
+                .HasColumnType("NUMBER(12,2)");
             entity.Property(e => e.PROMOTION_DISCOUNT)
                 .HasDefaultValueSql("0")
                 .HasComment("限时特价让利总额")

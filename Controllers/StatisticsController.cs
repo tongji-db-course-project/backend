@@ -150,10 +150,15 @@ public class StatisticsController : ControllerBase
     }
 
     [HttpPost("daily-settlements/{date:datetime}")]
-    public async Task<IActionResult> GenerateDailySettlement(DateTime date) =>
-        Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GenerateDailySettlementAsync(date)));
+    [Authorize(Roles = "1")]
+    public async Task<IActionResult> GenerateDailySettlement(DateTime date)
+    {
+        try { return Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GenerateDailySettlementAsync(date))); }
+        catch (ArgumentException ex) { return BadRequest(ApiResponse<object>.Fail(400, ex.Message)); }
+    }
 
     [HttpGet("daily-settlements/{date:datetime}")]
+    [Authorize(Roles = "1")]
     public async Task<IActionResult> GetDailySettlement(DateTime date)
     {
         try { return Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GetDailySettlementAsync(date))); }
