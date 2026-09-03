@@ -320,40 +320,125 @@ public class StatisticsService : IStatisticsService
         return list.OrderByDescending(x => x.grossProfit).ToList();
     }
 
-    public async Task<List<InventoryTurnoverDto>> GetInventoryTurnoverAsync(DateTime startDate, DateTime endDate)
+    public async Task<PageResult<InventoryTurnoverDto>> GetInventoryTurnoverAsync(
+        DateTime startDate,
+        DateTime endDate,
+        int? productId = null,
+        int? categoryId = null,
+        string avgMethod = "simple",
+        decimal slowThreshold = 2,
+        int page = 1,
+        int pageSize = 20,
+        bool onlyWithSales = false)
     {
+        if (page < 1) page = 1;
+        if (pageSize <= 0) pageSize = 50;
+
         var start = startDate.Date; var end = endDate.Date.AddDays(1);
-        var products = await _db.PRODUCTs.AsNoTracking().Select(x => new
+
+        var nextPeriodStart = endDate.Date.AddDays(1);
+        var changesQuery = _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => r.RECORD_TIME >= startDate.Date && r.RECORD_TIME < nextPeriodStart);
+        if (productId.HasValue) changesQuery = changesQuery.Where(r => r.PRODUCT_ID == productId.Value);
+        var changes = await changesQuery.GroupBy(x => x.PRODUCT_ID).Select(x => new
+        {
+            ProductId = x.Key,
+            Change = x.Sum(r => r.CHANGE_QTY),
+            Sold = -x.Where(r => r.RECORD_TYPE != null && r.RECORD_TYPE.Contains("销售")).Sum(r => r.CHANGE_QTY)
+        }).ToDictionaryAsync(x => x.ProductId);
+
+        var afterQuery = _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => r.RECORD_TIME >= nextPeriodStart);
+        if (productId.HasValue) afterQuery = afterQuery.Where(r => r.PRODUCT_ID == productId.Value);
+        var afterChanges = await afterQuery.GroupBy(x => x.PRODUCT_ID).Select(x => new
+        {
+            ProductId = x.Key,
+            Change = x.Sum(r => r.CHANGE_QTY)
+        }).ToDictionaryAsync(x => x.ProductId);
+
+        var prodQuery = _db.PRODUCTs.AsNoTracking().AsQueryable();
+        if (productId.HasValue) prodQuery = prodQuery.Where(p => p.PRODUCT_ID == productId.Value);
+        if (categoryId.HasValue) prodQuery = prodQuery.Where(p => p.CATEGORY_ID == categoryId.Value);
+
+        if (onlyWithSales)
+        {
+            var soldIds = changes.Keys.ToList();
+            prodQuery = prodQuery.Where(p => soldIds.Contains(p.PRODUCT_ID));
+        }
+
+        var products = await prodQuery.Select(x => new
         {
             x.PRODUCT_ID,
             x.PRODUCT_NAME,
-            Ending = x.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0
+            CurrentEnding = x.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0,
+            HasInventory = x.INVENTORies.Any()
         }).ToListAsync();
-        var changes = await _db.INVENTORY_RECORDs.AsNoTracking().Where(x => x.RECORD_TIME >= start && x.RECORD_TIME < end)
-            .GroupBy(x => x.PRODUCT_ID).Select(x => new
-            {
-                ProductId = x.Key,
-                Change = x.Sum(r => r.CHANGE_QTY),
-                Sold = -x.Where(r => r.RECORD_TYPE == "销售").Sum(r => r.CHANGE_QTY)
-            }).ToDictionaryAsync(x => x.ProductId);
-        return products.Select(x =>
+
+        var productIds = products.Select(p => p.PRODUCT_ID).ToList();
+
+        var endLimit = endDate.Date.AddDays(1).AddTicks(-1);
+        var startLimitExclusive = startDate.Date; 
+
+        var recordsBeforeEndAll = await _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => productIds.Contains(r.PRODUCT_ID) && r.RECORD_TIME <= endLimit)
+            .OrderBy(r => r.PRODUCT_ID).ThenBy(r => r.RECORD_TIME)
+            .ToListAsync();
+
+        var recordsBeforeStartAll = await _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => productIds.Contains(r.PRODUCT_ID) && r.RECORD_TIME < startLimitExclusive)
+            .OrderBy(r => r.PRODUCT_ID).ThenBy(r => r.RECORD_TIME)
+            .ToListAsync();
+
+        var lastRemainBeforeEnd = recordsBeforeEndAll
+            .GroupBy(r => r.PRODUCT_ID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.RECORD_TIME).First().REMAIN_QTY);
+
+        var lastRemainBeforeStart = recordsBeforeStartAll
+            .GroupBy(r => r.PRODUCT_ID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.RECORD_TIME).First().REMAIN_QTY);
+
+        var periodDays = (endDate.Date - startDate.Date).Days + 1;
+
+        var list = products.Select(x =>
         {
             var flow = changes.GetValueOrDefault(x.PRODUCT_ID);
-            var beginning = x.Ending - (flow?.Change ?? 0);
-            var average = Math.Max(0, (beginning + x.Ending) / 2m);
+            var endingAtEndDate = lastRemainBeforeEnd.TryGetValue(x.PRODUCT_ID, out var endRemain) ? endRemain : 0;
+            var beginning = lastRemainBeforeStart.TryGetValue(x.PRODUCT_ID, out var startRemain) ? startRemain : 0;
+            var average = Math.Max(0, (beginning + endingAtEndDate) / 2m);
             var sold = flow?.Sold ?? 0;
+            var turnover = average > 0 ? Math.Round(sold / average, 4) : 0;
+            string status = "normal";
+            if (sold == 0 && endingAtEndDate > 0) status = "aged";
+            else if (sold > 0 && turnover < slowThreshold) status = "slow";
+
             return new InventoryTurnoverDto
             {
                 productId = x.PRODUCT_ID,
                 productName = x.PRODUCT_NAME,
                 soldQuantity = sold,
                 beginningStock = beginning,
-                endingStock = x.Ending,
+
+                endingStock = endingAtEndDate,
                 averageStock = average,
-                turnoverTimes = average > 0 ? Math.Round(sold / average, 4) : 0,
-                stagnant = sold == 0 && x.Ending > 0
+                turnoverTimes = turnover,
+                stagnant = sold == 0 && endingAtEndDate > 0,
+                daysOfInventory = null,
+                status = status
             };
-        }).OrderBy(x => x.turnoverTimes).ToList();
+        })
+        .Where(x => x.beginningStock > 0 || x.endingStock > 0 || changes.ContainsKey(x.productId) || products.Any(p => p.PRODUCT_ID == x.productId && p.HasInventory))
+        .OrderByDescending(x => x.soldQuantity).ThenBy(x => x.turnoverTimes).ToList();
+
+        var total = list.Count;
+        var pageList = list.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return new PageResult<InventoryTurnoverDto>
+        {
+            list = pageList,
+            total = total,
+            page = page,
+            size = pageSize
+        };
     }
 
     public async Task<DailySettlementDto> GenerateDailySettlementAsync(DateTime date)

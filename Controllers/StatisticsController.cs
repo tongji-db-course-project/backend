@@ -143,10 +143,65 @@ public class StatisticsController : ControllerBase
     }
 
     [HttpGet("inventory/turnover")]
-    public async Task<IActionResult> GetInventoryTurnover(DateTime startDate, DateTime endDate)
+    [ProducesResponseType(typeof(ApiResponse<PageResult<InventoryTurnoverDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetInventoryTurnover(
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] int? productId = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string avgMethod = "simple",
+        [FromQuery] decimal slowThreshold = 2m,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] bool onlyWithSales = false,
+        [FromQuery] string? periodType = null,
+        [FromQuery] string? period = null)
     {
+        if (!string.IsNullOrEmpty(periodType))
+        {
+            var pt = periodType!.ToLower();
+            if (pt == "month" && !string.IsNullOrEmpty(period))
+            {
+                if (DateTime.TryParse(period + "-01", out var m))
+                {
+                    startDate = new DateTime(m.Year, m.Month, 1);
+                    endDate = startDate.AddMonths(1).AddDays(-1);
+                }
+            }
+            else if (pt == "quarter" && !string.IsNullOrEmpty(period))
+            {
+                var parts = period.Split(new[] { '-', 'Q' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[0], out var y) && int.TryParse(parts[1], out var q))
+                {
+                    q = Math.Max(1, Math.Min(4, q));
+                    var startMonth = (q - 1) * 3 + 1;
+                    startDate = new DateTime(y, startMonth, 1);
+                    endDate = startDate.AddMonths(3).AddDays(-1);
+                }
+            }
+            else if (pt == "half" && !string.IsNullOrEmpty(period))
+            {
+                var parts = period.Split(new[] { '-', 'H' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[0], out var y) && int.TryParse(parts[1], out var h))
+                {
+                    if (h == 1) { startDate = new DateTime(y, 1, 1); endDate = new DateTime(y, 6, 30); }
+                    else { startDate = new DateTime(y, 7, 1); endDate = new DateTime(y, 12, 31); }
+                }
+            }
+            else if (pt == "year" && !string.IsNullOrEmpty(period))
+            {
+                if (int.TryParse(period, out var y))
+                {
+                    startDate = new DateTime(y, 1, 1);
+                    endDate = new DateTime(y, 12, 31);
+                }
+            }
+        }
+
         if (startDate > endDate) return BadRequest(ApiResponse<object>.Fail(400, "开始日期不能大于结束日期"));
-        return Ok(ApiResponse<List<InventoryTurnoverDto>>.Ok(await _statisticsService.GetInventoryTurnoverAsync(startDate, endDate)));
+        var result = await _statisticsService.GetInventoryTurnoverAsync(startDate, endDate, productId, categoryId, avgMethod, slowThreshold, page, pageSize, onlyWithSales);
+        return Ok(ApiResponse<PageResult<InventoryTurnoverDto>>.Ok(result));
     }
 
     [HttpPost("daily-settlements/{date:datetime}")]
