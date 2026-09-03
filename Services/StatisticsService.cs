@@ -284,14 +284,19 @@ public class StatisticsService : IStatisticsService
             .GroupBy(x => new { x.PRODUCT_ID, x.PRODUCT.PRODUCT_NAME, x.PRODUCT.PURCHASE_PRICE })
             .Select(x => new
             {
-                x.Key.PRODUCT_ID, x.Key.PRODUCT_NAME, PurchasePrice = x.Key.PURCHASE_PRICE ?? 0,
-                Quantity = x.Sum(d => d.SALE_QUANTITY ?? 0), Amount = x.Sum(d => (d.SALE_QUANTITY ?? 0) * (d.SALE_PRICE ?? 0))
+                x.Key.PRODUCT_ID,
+                x.Key.PRODUCT_NAME,
+                PurchasePrice = x.Key.PURCHASE_PRICE ?? 0,
+                Quantity = x.Sum(d => d.SALE_QUANTITY ?? 0),
+                Amount = x.Sum(d => (d.SALE_QUANTITY ?? 0) * (d.SALE_PRICE ?? 0))
             }).ToListAsync();
         var returns = await _db.RETURN_ORDER_DETAILs.AsNoTracking()
             .Where(x => x.RETURN.STATUS == "已完成" && x.RETURN.RETURN_DATE >= start && x.RETURN.RETURN_DATE < end)
             .GroupBy(x => x.PRODUCT_ID).Select(x => new
             {
-                ProductId = x.Key, Quantity = x.Sum(d => d.QUANTITY), Amount = x.Sum(d => d.SUBTOTAL)
+                ProductId = x.Key,
+                Quantity = x.Sum(d => d.QUANTITY),
+                Amount = x.Sum(d => d.SUBTOTAL)
             }).ToDictionaryAsync(x => x.ProductId);
         var list = sales.Select(x =>
         {
@@ -301,8 +306,11 @@ public class StatisticsService : IStatisticsService
             var cost = quantity * x.PurchasePrice;
             return new ProductProfitRankDto
             {
-                productId = x.PRODUCT_ID, productName = x.PRODUCT_NAME, netSaleQuantity = quantity,
-                netSaleAmount = Math.Round(revenue, 2), purchaseCost = Math.Round(cost, 2),
+                productId = x.PRODUCT_ID,
+                productName = x.PRODUCT_NAME,
+                netSaleQuantity = quantity,
+                netSaleAmount = Math.Round(revenue, 2),
+                purchaseCost = Math.Round(cost, 2),
                 grossProfit = Math.Round(revenue - cost, 2),
                 grossProfitRate = revenue > 0 ? Math.Round((revenue - cost) / revenue, 4) : 0
             };
@@ -409,6 +417,7 @@ public class StatisticsService : IStatisticsService
                 productName = x.PRODUCT_NAME,
                 soldQuantity = sold,
                 beginningStock = beginning,
+
                 endingStock = endingAtEndDate,
                 averageStock = average,
                 turnoverTimes = turnover,
@@ -449,13 +458,19 @@ public class StatisticsService : IStatisticsService
         var promotionDiscount = sales.Sum(x => x.PROMOTION_DISCOUNT ?? 0);
         var settlement = new DAILY_SETTLEMENT
         {
-            SETTLEMENT_DATE = day, TOTAL_SALES = sales.Sum(x => x.PAID_AMOUNT ?? 0),
+            SETTLEMENT_DATE = day,
+            TOTAL_SALES = sales.Sum(x => x.PAID_AMOUNT ?? 0),
             CASH_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("现金")).Sum(x => x.PAID_AMOUNT ?? 0),
             WECHAT_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("微信")).Sum(x => x.PAID_AMOUNT ?? 0),
             ALIPAY_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("支付宝")).Sum(x => x.PAID_AMOUNT ?? 0),
-            PROMOTION_DISCOUNT = promotionDiscount, MEMBER_DISCOUNT = memberDiscount, COUPON_DEDUCT = couponDeduct,
-            POINT_DEDUCT = pointDeduct, POINT_CONSUMED = pointConsumed,
-            ORDER_COUNT = sales.Count, STATUS = "已生成", CREATE_TIME = DateTime.Now
+            PROMOTION_DISCOUNT = promotionDiscount,
+            MEMBER_DISCOUNT = memberDiscount,
+            COUPON_DEDUCT = couponDeduct,
+            POINT_DEDUCT = pointDeduct,
+            POINT_CONSUMED = pointConsumed,
+            ORDER_COUNT = sales.Count,
+            STATUS = "已生成",
+            CREATE_TIME = DateTime.Now
         };
         _db.DAILY_SETTLEMENTs.Add(settlement);
         await _db.SaveChangesAsync();
@@ -471,10 +486,19 @@ public class StatisticsService : IStatisticsService
 
     private static DailySettlementDto ToDailySettlementDto(DAILY_SETTLEMENT x) => new()
     {
-        settlementId = x.SETTLEMENT_ID, settlementDate = x.SETTLEMENT_DATE, totalSales = x.TOTAL_SALES ?? 0,
-        cashAmount = x.CASH_AMOUNT ?? 0, wechatAmount = x.WECHAT_AMOUNT ?? 0, alipayAmount = x.ALIPAY_AMOUNT ?? 0,
-        promotionDiscount = x.PROMOTION_DISCOUNT ?? 0, memberDiscount = x.MEMBER_DISCOUNT ?? 0,
-        couponDeduct = x.COUPON_DEDUCT ?? 0, pointDeduct = x.POINT_DEDUCT ?? 0, pointConsumed = x.POINT_CONSUMED ?? 0,
-        orderCount = x.ORDER_COUNT ?? 0, status = x.STATUS ?? string.Empty, createTime = x.CREATE_TIME
+        settlementId = x.SETTLEMENT_ID,
+        settlementDate = x.SETTLEMENT_DATE,
+        totalSales = x.TOTAL_SALES ?? 0,
+        cashAmount = x.CASH_AMOUNT ?? 0,
+        wechatAmount = x.WECHAT_AMOUNT ?? 0,
+        alipayAmount = x.ALIPAY_AMOUNT ?? 0,
+        promotionDiscount = x.PROMOTION_DISCOUNT ?? 0,
+        memberDiscount = x.MEMBER_DISCOUNT ?? 0,
+        couponDeduct = x.COUPON_DEDUCT ?? 0,
+        pointDeduct = x.POINT_DEDUCT ?? 0,
+        pointConsumed = x.POINT_CONSUMED ?? 0,
+        orderCount = x.ORDER_COUNT ?? 0,
+        status = x.STATUS ?? string.Empty,
+        createTime = x.CREATE_TIME
     };
 }

@@ -74,8 +74,11 @@ public class InventoryController : ControllerBase
         return await ExecuteAsync(async () => ApiResponse<InventoryDto>.Ok(
             await _inventoryService.AdjustInventoryAsync(new InventoryAdjustDto
             {
-                productId = productId, changeQty = request.changeQty, recordType = request.recordType,
-                remark = request.remark, sourceNo = request.sourceNo
+                productId = productId,
+                changeQty = request.changeQty,
+                recordType = request.recordType,
+                remark = request.remark,
+                sourceNo = request.sourceNo
             }, operatorId)));
     }
 

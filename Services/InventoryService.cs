@@ -263,8 +263,12 @@ public class InventoryService : IInventoryService
             .Where(x => x.STATUS == "在售")
             .Select(x => new
             {
-                x.PRODUCT_ID, x.PRODUCT_NAME, x.STOCK_WARNING, x.SUPPLIER_ID,
-                x.SUPPLIER.SUPPLIER_NAME, x.SUPPLIER.MIN_ORDER_QTY,
+                x.PRODUCT_ID,
+                x.PRODUCT_NAME,
+                x.STOCK_WARNING,
+                x.SUPPLIER_ID,
+                x.SUPPLIER.SUPPLIER_NAME,
+                x.SUPPLIER.MIN_ORDER_QTY,
                 CurrentStock = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
                     .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0
             })

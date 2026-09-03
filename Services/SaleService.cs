@@ -268,8 +268,13 @@ public class SaleService : ISaleService
         await _db.SaveChangesAsync();
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "销售单", ORDER_ID = order.SALE_ID, OLD_STATUS = null, NEW_STATUS = "已完成",
-            OPERATOR_ID = userId, CHANGE_TIME = now, REMARK = "POS 收银结算"
+            ORDER_TYPE = "销售单",
+            ORDER_ID = order.SALE_ID,
+            OLD_STATUS = null,
+            NEW_STATUS = "已完成",
+            OPERATOR_ID = userId,
+            CHANGE_TIME = now,
+            REMARK = "POS 收银结算"
         });
         if (member is not null)
         {
@@ -305,9 +310,14 @@ public class SaleService : ISaleService
             inventory.CURRENT_STOCK += quantity; inventory.LAST_UPDATE_TIME = now;
             _db.INVENTORY_RECORDs.Add(new INVENTORY_RECORD
             {
-                PRODUCT_ID = detail.PRODUCT_ID, RECORD_TYPE = "销售作废", SOURCE_NO = sale.SALE_NO,
-                CHANGE_QTY = quantity, REMAIN_QTY = inventory.CURRENT_STOCK, OPERATOR_ID = operatorId,
-                RECORD_TIME = now, REMARK = "销售单作废恢复库存"
+                PRODUCT_ID = detail.PRODUCT_ID,
+                RECORD_TYPE = "销售作废",
+                SOURCE_NO = sale.SALE_NO,
+                CHANGE_QTY = quantity,
+                REMAIN_QTY = inventory.CURRENT_STOCK,
+                OPERATOR_ID = operatorId,
+                RECORD_TIME = now,
+                REMARK = "销售单作废恢复库存"
             });
         }
         if (sale.MEMBER_ID.HasValue)
@@ -320,8 +330,13 @@ public class SaleService : ISaleService
                 member.POINTS = (member.POINTS ?? 0) - originalPoints;
                 _db.POINT_RECORDs.Add(new POINT_RECORD
                 {
-                    MEMBER_ID = member.MEMBER_ID, SALE_ID = saleId, CHANGE_TYPE = originalPoints > 0 ? "扣减" : "增加",
-                    CHANGE_POINTS = -originalPoints, REMAIN_POINTS = member.POINTS.Value, RECORD_TIME = now, REMARK = "销售单作废积分冲销"
+                    MEMBER_ID = member.MEMBER_ID,
+                    SALE_ID = saleId,
+                    CHANGE_TYPE = originalPoints > 0 ? "扣减" : "增加",
+                    CHANGE_POINTS = -originalPoints,
+                    REMAIN_POINTS = member.POINTS.Value,
+                    RECORD_TIME = now,
+                    REMARK = "销售单作废积分冲销"
                 });
             }
         }
@@ -335,8 +350,13 @@ public class SaleService : ISaleService
         sale.STATUS = "已取消"; sale.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "销售单", ORDER_ID = saleId, OLD_STATUS = "已完成", NEW_STATUS = "已取消",
-            OPERATOR_ID = operatorId, CHANGE_TIME = now, REMARK = "销售单作废"
+            ORDER_TYPE = "销售单",
+            ORDER_ID = saleId,
+            OLD_STATUS = "已完成",
+            NEW_STATUS = "已取消",
+            OPERATOR_ID = operatorId,
+            CHANGE_TIME = now,
+            REMARK = "销售单作废"
         });
         await _db.SaveChangesAsync();
         if (sale.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, sale.MEMBER_ID.Value, now);
@@ -350,8 +370,14 @@ public class SaleService : ISaleService
         return await _db.ORDER_STATUS_LOGs.AsNoTracking().Where(x => x.ORDER_TYPE == "销售单" && x.ORDER_ID == saleId)
             .OrderBy(x => x.CHANGE_TIME).ThenBy(x => x.LOG_ID).Select(x => new OrderStatusLogDto
             {
-                logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID, oldStatus = x.OLD_STATUS,
-                newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID, changeTime = x.CHANGE_TIME, remark = x.REMARK
+                logId = x.LOG_ID,
+                orderType = x.ORDER_TYPE,
+                orderId = x.ORDER_ID,
+                oldStatus = x.OLD_STATUS,
+                newStatus = x.NEW_STATUS,
+                operatorId = x.OPERATOR_ID,
+                changeTime = x.CHANGE_TIME,
+                remark = x.REMARK
             }).ToListAsync();
     }
 
