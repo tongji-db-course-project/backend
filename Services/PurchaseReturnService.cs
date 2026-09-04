@@ -194,9 +194,13 @@ public class PurchaseReturnService : IPurchaseReturnService
             settlement.UNPAID_AMOUNT = Math.Max(0, settlement.SETTLEMENT_AMOUNT - (settlement.PAID_AMOUNT ?? 0));
             settlement.STATUS = (settlement.PAID_AMOUNT ?? 0) <= 0 ? "未结算" :
                 (settlement.PAID_AMOUNT ?? 0) >= settlement.SETTLEMENT_AMOUNT ? "已结算" : "部分结算";
+            var note = $"退货 {order.RETURN_NO} 冲减 {order.TOTAL_AMOUNT:F2} 元";
             settlement.REMARK = string.IsNullOrWhiteSpace(settlement.REMARK)
-                ? $"采购退货 {order.RETURN_NO} 冲减应付 {order.TOTAL_AMOUNT:F2} 元"
-                : $"{settlement.REMARK}; 采购退货 {order.RETURN_NO} 冲减应付 {order.TOTAL_AMOUNT:F2} 元";
+                ? note
+                : $"{settlement.REMARK}; {note}";
+            // remark 上限 VARCHAR2(200)，多单退货累计追加时截断保底
+            if (settlement.REMARK.Length > 200)
+                settlement.REMARK = settlement.REMARK[..200];
         }
 
         order.STATUS = Completed;
