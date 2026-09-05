@@ -21,7 +21,7 @@ public partial class DAILY_SETTLEMENT
     public decimal? TOTAL_SALES { get; set; }
 
     /// <summary>
-    /// 当日实际完成的退款金额
+    /// 当日实际完成退款金额
     /// </summary>
     public decimal? REFUND_AMOUNT { get; set; }
 

@@ -43,12 +43,24 @@ public partial class SALE_ORDER
     /// </summary>
     public decimal? DISCOUNT_AMOUNT { get; set; }
 
+    /// <summary>
+    /// 限时特价让利总额
+    /// </summary>
     public decimal? PROMOTION_DISCOUNT { get; set; }
 
+    /// <summary>
+    /// 会员折扣让利总额
+    /// </summary>
     public decimal? MEMBER_DISCOUNT { get; set; }
 
+    /// <summary>
+    /// 优惠券核销总额
+    /// </summary>
     public decimal? COUPON_DEDUCT { get; set; }
 
+    /// <summary>
+    /// 积分抵扣金额
+    /// </summary>
     public decimal? POINT_DEDUCT { get; set; }
 
     /// <summary>
