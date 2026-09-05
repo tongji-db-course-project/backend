@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text;
 using backend.Data;
 using backend.Dtos;
 using backend.Models;
@@ -194,9 +195,12 @@ public class PurchaseReturnService : IPurchaseReturnService
             settlement.UNPAID_AMOUNT = Math.Max(0, settlement.SETTLEMENT_AMOUNT - (settlement.PAID_AMOUNT ?? 0));
             settlement.STATUS = (settlement.PAID_AMOUNT ?? 0) <= 0 ? "未结算" :
                 (settlement.PAID_AMOUNT ?? 0) >= settlement.SETTLEMENT_AMOUNT ? "已结算" : "部分结算";
+            var note = $"退货 {order.RETURN_NO} 冲减 {order.TOTAL_AMOUNT:F2} 元";
             settlement.REMARK = string.IsNullOrWhiteSpace(settlement.REMARK)
-                ? $"采购退货 {order.RETURN_NO} 冲减应付 {order.TOTAL_AMOUNT:F2} 元"
-                : $"{settlement.REMARK}; 采购退货 {order.RETURN_NO} 冲减应付 {order.TOTAL_AMOUNT:F2} 元";
+                ? note
+                : $"{settlement.REMARK}; {note}";
+            // Oracle VARCHAR2(200) 按字节计（AL32UTF8 中文3字节/字），按 UTF8 字节安全截断
+            settlement.REMARK = TruncateUtf8(settlement.REMARK, 200);
         }
 
         order.STATUS = Completed;
@@ -279,6 +283,22 @@ public class PurchaseReturnService : IPurchaseReturnService
         var details = requested.Select(x => new ValidatedDetail(
             x.Key, x.Value, purchased[x.Key].price, Math.Round(purchased[x.Key].price * x.Value, 2))).ToList();
         return (purchase, details);
+    }
+
+    /// <summary>
+    /// 按 UTF8 字节数截断字符串，保证不切断多字节字符（中文）
+    /// </summary>
+    private static string TruncateUtf8(string text, int maxBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(text) <= maxBytes) return text;
+        var builder = new StringBuilder();
+        foreach (var c in text)
+        {
+            if (Encoding.UTF8.GetByteCount(builder.ToString()) + Encoding.UTF8.GetByteCount(c.ToString()) > maxBytes)
+                break;
+            builder.Append(c);
+        }
+        return builder.ToString();
     }
 
     private void AddLog(int returnId, string? oldStatus, string newStatus, int operatorId, string? remark)
