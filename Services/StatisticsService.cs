@@ -210,7 +210,9 @@ public class StatisticsService : IStatisticsService
     /// </summary>
     public async Task<InventoryStatistics> GetInventoryStatisticsAsync(DateTime? startDate, DateTime? endDate)
     {
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var inventories = await _db.INVENTORies.AsNoTracking()
+            .Where(i => i.WAREHOUSE_ID == warehouseId)
             .Select(i => new
             {
                 i.PRODUCT_ID,
@@ -227,7 +229,7 @@ public class StatisticsService : IStatisticsService
             .Distinct()
             .LongCount();
 
-        var warehouseCount = await _db.WAREHOUSEs.AsNoTracking().LongCountAsync();
+        const long warehouseCount = 1;
 
         return new InventoryStatistics
         {
@@ -315,9 +317,12 @@ public class StatisticsService : IStatisticsService
     public async Task<List<InventoryTurnoverDto>> GetInventoryTurnoverAsync(DateTime startDate, DateTime endDate)
     {
         var start = startDate.Date; var end = endDate.Date.AddDays(1);
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var products = await _db.PRODUCTs.AsNoTracking().Select(x => new
         {
-            x.PRODUCT_ID, x.PRODUCT_NAME, Ending = x.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0
+            x.PRODUCT_ID, x.PRODUCT_NAME,
+            Ending = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                .Sum(i => (int?)i.CURRENT_STOCK) ?? 0
         }).ToListAsync();
         var changes = await _db.INVENTORY_RECORDs.AsNoTracking().Where(x => x.RECORD_TIME >= start && x.RECORD_TIME < end)
             .GroupBy(x => x.PRODUCT_ID).Select(x => new

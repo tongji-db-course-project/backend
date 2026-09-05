@@ -73,6 +73,7 @@ public class SupplierService : ISupplierService
     {
         if (!await _db.SUPPLIERs.AsNoTracking().AnyAsync(x => x.SUPPLIER_ID == supplierId))
             throw new KeyNotFoundException("供应商不存在");
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         page = Math.Max(1, page);
         size = Math.Clamp(size, 1, 100);
         var query = _db.PRODUCTs.AsNoTracking().Where(x => x.SUPPLIER_ID == supplierId);
@@ -86,7 +87,8 @@ public class SupplierService : ISupplierService
                 categoryId = x.CATEGORY_ID, categoryName = x.CATEGORY.CATEGORY_NAME,
                 supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER.SUPPLIER_NAME,
                 isPromotion = x.IS_PROMOTION, promotionPrice = x.PROMOTION_PRICE,
-                currentStock = x.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0
+                currentStock = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                    .Sum(i => (int?)i.CURRENT_STOCK) ?? 0
             }).ToListAsync();
         return new PageResult<ProductListItemDto> { list = list, total = total, page = page, size = size };
     }

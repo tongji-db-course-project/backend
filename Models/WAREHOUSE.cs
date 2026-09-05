@@ -33,8 +33,4 @@ public partial class WAREHOUSE
     public virtual ICollection<INVENTORY> INVENTORies { get; set; } = new List<INVENTORY>();
 
     public virtual ICollection<STOCK_CHECK_ORDER> STOCK_CHECK_ORDERs { get; set; } = new List<STOCK_CHECK_ORDER>();
-
-    public virtual ICollection<TRANSFER_ORDER> TRANSFER_ORDERFROM_WAREHOUSENavigations { get; set; } = new List<TRANSFER_ORDER>();
-
-    public virtual ICollection<TRANSFER_ORDER> TRANSFER_ORDERTO_WAREHOUSENavigations { get; set; } = new List<TRANSFER_ORDER>();
 }

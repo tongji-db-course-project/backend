@@ -440,12 +440,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new InvalidOperationException($"当前状态({order.STATUS})不允许入库，仅已审批可入库");
         }
 
-        // 仓库必须存在
-        var warehouseExists = await _db.WAREHOUSEs.AnyAsync(w => w.WAREHOUSE_ID == request.warehouseId);
-        if (!warehouseExists)
-        {
-            throw new KeyNotFoundException($"仓库不存在：{request.warehouseId}");
-        }
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db, request.warehouseId);
 
         // 入库商品必须是订单明细中的商品
         var orderProductIds = order.PURCHASE_ORDER_DETAILs
@@ -477,10 +472,10 @@ public class PurchaseOrderService : IPurchaseOrderService
         var inList = string.Join(",", stockProductIds);
         await _db.Database.ExecuteSqlRawAsync(
             "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
-            request.warehouseId);
+            warehouseId);
         var inventories = await _db.INVENTORies
             .Where(i => request.details.Select(d => d.productId).Contains(i.PRODUCT_ID)
-                        && i.WAREHOUSE_ID == request.warehouseId)
+                        && i.WAREHOUSE_ID == warehouseId)
             .ToListAsync();
 
         foreach (var detail in request.details)
@@ -493,7 +488,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 inventory = new INVENTORY
                 {
                     PRODUCT_ID = detail.productId,
-                    WAREHOUSE_ID = request.warehouseId,
+                    WAREHOUSE_ID = warehouseId,
                     CURRENT_STOCK = detail.stockInQuantity,
                     LAST_UPDATE_TIME = now
                 };

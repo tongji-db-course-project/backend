@@ -66,10 +66,6 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<SYS_USER> SYS_USERs { get; set; }
 
-    public virtual DbSet<TRANSFER_ORDER> TRANSFER_ORDERs { get; set; }
-
-    public virtual DbSet<TRANSFER_ORDER_DETAIL> TRANSFER_ORDER_DETAILs { get; set; }
-
     public virtual DbSet<WAREHOUSE> WAREHOUSEs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -80,7 +76,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<COUPON_TEMPLATE>(entity =>
         {
-            entity.HasKey(e => e.TEMPLATE_ID).HasName("SYS_C009065");
+            entity.HasKey(e => e.TEMPLATE_ID).HasName("SYS_C008823");
 
             entity.ToTable("COUPON_TEMPLATE", tb => tb.HasComment("优惠券模板表：定义一种优惠券的规则与发放总量"));
 
@@ -122,7 +118,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<DAILY_SETTLEMENT>(entity =>
         {
-            entity.HasKey(e => e.SETTLEMENT_ID).HasName("SYS_C009120");
+            entity.HasKey(e => e.SETTLEMENT_ID).HasName("SYS_C008859");
 
             entity.ToTable("DAILY_SETTLEMENT", tb => tb.HasComment("每日营业结转表：记录每日闭店后的销售汇总与各项优惠拆分"));
 
@@ -185,7 +181,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<INVENTORY>(entity =>
         {
-            entity.HasKey(e => e.INVENTORY_ID).HasName("SYS_C008976");
+            entity.HasKey(e => e.INVENTORY_ID).HasName("SYS_C008734");
 
             entity.ToTable("INVENTORY");
 
@@ -224,7 +220,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<INVENTORY_RECORD>(entity =>
         {
-            entity.HasKey(e => e.RECORD_ID).HasName("SYS_C008987");
+            entity.HasKey(e => e.RECORD_ID).HasName("SYS_C008745");
 
             entity.ToTable("INVENTORY_RECORD");
 
@@ -324,7 +320,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<MEMBER_COUPON>(entity =>
         {
-            entity.HasKey(e => e.COUPON_ID).HasName("SYS_C009070");
+            entity.HasKey(e => e.COUPON_ID).HasName("SYS_C008828");
 
             entity.ToTable("MEMBER_COUPON", tb => tb.HasComment("会员持有优惠券表：记录每张已发放优惠券的归属与使用状态"));
 
@@ -374,7 +370,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<ORDER_STATUS_LOG>(entity =>
         {
-            entity.HasKey(e => e.LOG_ID).HasName("SYS_C009036");
+            entity.HasKey(e => e.LOG_ID).HasName("SYS_C008794");
 
             entity.ToTable("ORDER_STATUS_LOG", tb => tb.HasComment("订单状态流转日志表：记录采购/销售/退货单的每一次状态变更"));
 
@@ -413,7 +409,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<POINT_CONFIG>(entity =>
         {
-            entity.HasKey(e => e.CONFIG_ID).HasName("SYS_C009078");
+            entity.HasKey(e => e.CONFIG_ID).HasName("SYS_C008836");
 
             entity.ToTable("POINT_CONFIG", tb => tb.HasComment("积分规则配置表：定义积分获取与抵扣比例"));
 
@@ -445,7 +441,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<POINT_RECORD>(entity =>
         {
-            entity.HasKey(e => e.POINT_RECORD_ID).HasName("SYS_C009018");
+            entity.HasKey(e => e.POINT_RECORD_ID).HasName("SYS_C008776");
 
             entity.ToTable("POINT_RECORD", tb => tb.HasComment("积分流水表：记录会员积分的每一次增减变动历史"));
 
@@ -482,7 +478,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<PRODUCT>(entity =>
         {
-            entity.HasKey(e => e.PRODUCT_ID).HasName("SYS_C008935");
+            entity.HasKey(e => e.PRODUCT_ID).HasName("SYS_C008693");
 
             entity.ToTable("PRODUCT", tb => tb.HasComment("商品基础资料表"));
 
@@ -490,7 +486,7 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.SUPPLIER_ID, "IDX_PRODUCT_SUPPLIER");
 
-            entity.HasIndex(e => e.BARCODE, "SYS_C008936").IsUnique();
+            entity.HasIndex(e => e.BARCODE, "SYS_C008694").IsUnique();
 
             entity.Property(e => e.PRODUCT_ID).HasPrecision(10);
             entity.Property(e => e.BARCODE)
@@ -539,11 +535,11 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<PRODUCT_CATEGORY>(entity =>
         {
-            entity.HasKey(e => e.CATEGORY_ID).HasName("SYS_C008919");
+            entity.HasKey(e => e.CATEGORY_ID).HasName("SYS_C008677");
 
             entity.ToTable("PRODUCT_CATEGORY", tb => tb.HasComment("商品类别表"));
 
-            entity.HasIndex(e => e.CATEGORY_NAME, "SYS_C008920").IsUnique();
+            entity.HasIndex(e => e.CATEGORY_NAME, "SYS_C008678").IsUnique();
 
             entity.Property(e => e.CATEGORY_ID).HasPrecision(10);
             entity.Property(e => e.CATEGORY_DESC)
@@ -621,7 +617,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<PURCHASE_ORDER_DETAIL>(entity =>
         {
-            entity.HasKey(e => e.PURCHASE_DETAIL_ID).HasName("SYS_C008950");
+            entity.HasKey(e => e.PURCHASE_DETAIL_ID).HasName("SYS_C008708");
 
             entity.ToTable("PURCHASE_ORDER_DETAIL", tb => tb.HasComment("采购订单明细表"));
 
@@ -658,7 +654,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<PURCHASE_RETURN_ORDER>(entity =>
         {
-            entity.HasKey(e => e.RETURN_ID).HasName("SYS_C009044");
+            entity.HasKey(e => e.RETURN_ID).HasName("SYS_C008802");
 
             entity.ToTable("PURCHASE_RETURN_ORDER", tb => tb.HasComment("采购退货单主表：处理向供应商退货的业务单据"));
 
@@ -728,7 +724,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<PURCHASE_RETURN_ORDER_DETAIL>(entity =>
         {
-            entity.HasKey(e => e.DETAIL_ID).HasName("SYS_C009055");
+            entity.HasKey(e => e.DETAIL_ID).HasName("SYS_C008813");
 
             entity.ToTable("PURCHASE_RETURN_ORDER_DETAIL", tb => tb.HasComment("采购退货单明细表"));
 
@@ -766,7 +762,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<RETURN_ORDER>(entity =>
         {
-            entity.HasKey(e => e.RETURN_ID).HasName("SYS_C008998");
+            entity.HasKey(e => e.RETURN_ID).HasName("SYS_C008756");
 
             entity.ToTable("RETURN_ORDER");
 
@@ -834,7 +830,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<RETURN_ORDER_DETAIL>(entity =>
         {
-            entity.HasKey(e => e.RETURN_DETAIL_ID).HasName("SYS_C009009");
+            entity.HasKey(e => e.RETURN_DETAIL_ID).HasName("SYS_C008767");
 
             entity.ToTable("RETURN_ORDER_DETAIL", tb => tb.HasComment("退货单明细表：记录每一笔退货业务中包含的具体商品、数量及退款单价"));
 
@@ -865,7 +861,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SALE_ORDER>(entity =>
         {
-            entity.HasKey(e => e.SALE_ID).HasName("SYS_C008957");
+            entity.HasKey(e => e.SALE_ID).HasName("SYS_C008715");
 
             entity.ToTable("SALE_ORDER", tb => tb.HasComment("销售订单表"));
 
@@ -878,6 +874,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.SALE_ID)
                 .HasPrecision(10)
                 .HasComment("销售单编号");
+            entity.Property(e => e.COUPON_DEDUCT)
+                .HasDefaultValueSql("0")
+                .HasComment("优惠券核销总额")
+                .HasColumnType("NUMBER(12,2)");
             entity.Property(e => e.CREATE_TIME)
                 .HasDefaultValueSql("SYSDATE")
                 .HasComment("订单创建时间")
@@ -885,21 +885,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.DISCOUNT_AMOUNT)
                 .HasComment("优惠金额")
                 .HasColumnType("NUMBER(12,2)");
-            entity.Property(e => e.PROMOTION_DISCOUNT)
-                .HasDefaultValueSql("0")
-                .HasComment("商品促销价优惠金额")
-                .HasColumnType("NUMBER(12,2)");
             entity.Property(e => e.MEMBER_DISCOUNT)
                 .HasDefaultValueSql("0")
-                .HasComment("会员等级优惠金额")
-                .HasColumnType("NUMBER(12,2)");
-            entity.Property(e => e.COUPON_DEDUCT)
-                .HasDefaultValueSql("0")
-                .HasComment("优惠券抵扣金额")
-                .HasColumnType("NUMBER(12,2)");
-            entity.Property(e => e.POINT_DEDUCT)
-                .HasDefaultValueSql("0")
-                .HasComment("积分抵扣金额")
+                .HasComment("会员折扣让利总额")
                 .HasColumnType("NUMBER(12,2)");
             entity.Property(e => e.MEMBER_ID)
                 .HasPrecision(10)
@@ -911,6 +899,14 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsUnicode(false)
                 .HasComment("支付方式");
+            entity.Property(e => e.POINT_DEDUCT)
+                .HasDefaultValueSql("0")
+                .HasComment("积分抵扣金额")
+                .HasColumnType("NUMBER(12,2)");
+            entity.Property(e => e.PROMOTION_DISCOUNT)
+                .HasDefaultValueSql("0")
+                .HasComment("限时特价让利总额")
+                .HasColumnType("NUMBER(12,2)");
             entity.Property(e => e.SALE_DATE)
                 .HasComment("销售日期")
                 .HasColumnType("DATE");
@@ -945,7 +941,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SALE_ORDER_DETAIL>(entity =>
         {
-            entity.HasKey(e => e.SALE_DETAIL_ID).HasName("SYS_C008964");
+            entity.HasKey(e => e.SALE_DETAIL_ID).HasName("SYS_C008722");
 
             entity.ToTable("SALE_ORDER_DETAIL", tb => tb.HasComment("销售单明细表"));
 
@@ -982,7 +978,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<STOCK_CHECK_DETAIL>(entity =>
         {
-            entity.HasKey(e => e.DETAIL_ID).HasName("SYS_C009114");
+            entity.HasKey(e => e.DETAIL_ID).HasName("SYS_C008853");
 
             entity.ToTable("STOCK_CHECK_DETAIL", tb => tb.HasComment("库存盘点明细表：逐商品比对系统库存与实际库存"));
 
@@ -1026,7 +1022,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<STOCK_CHECK_ORDER>(entity =>
         {
-            entity.HasKey(e => e.CHECK_ID).HasName("SYS_C009104");
+            entity.HasKey(e => e.CHECK_ID).HasName("SYS_C008843");
 
             entity.ToTable("STOCK_CHECK_ORDER", tb => tb.HasComment("库存盘点单主表：记录盘点任务与执行状态"));
 
@@ -1132,7 +1128,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SUPPLIER_SETTLEMENT>(entity =>
         {
-            entity.HasKey(e => e.SETTLEMENT_ID).HasName("SYS_C009028");
+            entity.HasKey(e => e.SETTLEMENT_ID).HasName("SYS_C008786");
 
             entity.ToTable("SUPPLIER_SETTLEMENT", tb => tb.HasComment("供应商结算表：管理与供应商的财务结账情况"));
 
@@ -1171,7 +1167,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SYS_MENU>(entity =>
         {
-            entity.HasKey(e => e.MENU_ID).HasName("SYS_C008897");
+            entity.HasKey(e => e.MENU_ID).HasName("SYS_C008654");
 
             entity.ToTable("SYS_MENU", tb => tb.HasComment("菜单功能表"));
 
@@ -1196,11 +1192,11 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SYS_ROLE>(entity =>
         {
-            entity.HasKey(e => e.ROLE_ID).HasName("SYS_C008893");
+            entity.HasKey(e => e.ROLE_ID).HasName("SYS_C008650");
 
             entity.ToTable("SYS_ROLE", tb => tb.HasComment("角色表"));
 
-            entity.HasIndex(e => e.ROLE_NAME, "SYS_C008894").IsUnique();
+            entity.HasIndex(e => e.ROLE_NAME, "SYS_C008651").IsUnique();
 
             entity.Property(e => e.ROLE_ID)
                 .HasPrecision(10)
@@ -1217,7 +1213,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SYS_ROLE_MENU>(entity =>
         {
-            entity.HasKey(e => e.ROLE_MENU_ID).HasName("SYS_C008908");
+            entity.HasKey(e => e.ROLE_MENU_ID).HasName("SYS_C008666");
 
             entity.ToTable("SYS_ROLE_MENU", tb => tb.HasComment("权限中间表：定义哪些角色可以访问哪些菜单"));
 
@@ -1230,6 +1226,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ROLE_MENU_ID).HasPrecision(10);
             entity.Property(e => e.MENU_ID).HasPrecision(10);
             entity.Property(e => e.ROLE_ID).HasPrecision(10);
+            entity.Property(e => e.STATUS)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValueSql("'启用'");
 
             entity.HasOne(d => d.MENU).WithMany(p => p.SYS_ROLE_MENUs)
                 .HasForeignKey(d => d.MENU_ID)
@@ -1242,13 +1242,13 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<SYS_USER>(entity =>
         {
-            entity.HasKey(e => e.USER_ID).HasName("SYS_C008902");
+            entity.HasKey(e => e.USER_ID).HasName("SYS_C008659");
 
             entity.ToTable("SYS_USER", tb => tb.HasComment("用户表"));
 
             entity.HasIndex(e => e.ROLE_ID, "IDX_SYS_USER_ROLE");
 
-            entity.HasIndex(e => e.USERNAME, "SYS_C008903").IsUnique();
+            entity.HasIndex(e => e.USERNAME, "SYS_C008660").IsUnique();
 
             entity.Property(e => e.USER_ID)
                 .HasPrecision(10)
@@ -1290,111 +1290,9 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK_USER_ROLE");
         });
 
-        modelBuilder.Entity<TRANSFER_ORDER>(entity =>
-        {
-            entity.HasKey(e => e.TRANSFER_ID).HasName("SYS_C009085");
-
-            entity.ToTable("TRANSFER_ORDER", tb => tb.HasComment("调拨单主表：处理商品在不同仓库/门店之间的转移"));
-
-            entity.HasIndex(e => e.APPLICANT_ID, "IDX_TO_APPLICANT");
-
-            entity.HasIndex(e => e.APPROVER_ID, "IDX_TO_APPROVER");
-
-            entity.HasIndex(e => e.FROM_WAREHOUSE, "IDX_TO_FROM_WH");
-
-            entity.HasIndex(e => e.TO_WAREHOUSE, "IDX_TO_TO_WH");
-
-            entity.HasIndex(e => e.TRANSFER_NO, "UK_TRANSFER_NO").IsUnique();
-
-            entity.Property(e => e.TRANSFER_ID).HasPrecision(10);
-            entity.Property(e => e.APPLICANT_ID)
-                .HasPrecision(10)
-                .HasComment("申请人编号");
-            entity.Property(e => e.APPROVER_ID)
-                .HasPrecision(10)
-                .HasComment("审批人编号");
-            entity.Property(e => e.COMPLETE_TIME)
-                .HasComment("调拨完成时间")
-                .HasColumnType("DATE");
-            entity.Property(e => e.CREATE_TIME)
-                .HasDefaultValueSql("SYSDATE")
-                .HasComment("创建时间")
-                .HasColumnType("DATE");
-            entity.Property(e => e.FROM_WAREHOUSE)
-                .HasPrecision(10)
-                .HasComment("源仓库编号");
-            entity.Property(e => e.REMARK)
-                .HasMaxLength(200)
-                .IsUnicode(false)
-                .HasComment("备注");
-            entity.Property(e => e.STATUS)
-                .HasMaxLength(20)
-                .IsUnicode(false)
-                .HasDefaultValueSql("'待审核'")
-                .HasComment("调拨单状态");
-            entity.Property(e => e.TO_WAREHOUSE)
-                .HasPrecision(10)
-                .HasComment("目标仓库编号");
-            entity.Property(e => e.TRANSFER_NO)
-                .HasMaxLength(50)
-                .IsUnicode(false)
-                .HasComment("调拨单号");
-
-            entity.HasOne(d => d.APPLICANT).WithMany(p => p.TRANSFER_ORDERAPPLICANTs)
-                .HasForeignKey(d => d.APPLICANT_ID)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TO_APPLICANT");
-
-            entity.HasOne(d => d.APPROVER).WithMany(p => p.TRANSFER_ORDERAPPROVERs)
-                .HasForeignKey(d => d.APPROVER_ID)
-                .HasConstraintName("FK_TO_APPROVER");
-
-            entity.HasOne(d => d.FROM_WAREHOUSENavigation).WithMany(p => p.TRANSFER_ORDERFROM_WAREHOUSENavigations)
-                .HasForeignKey(d => d.FROM_WAREHOUSE)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TO_FROM_WH");
-
-            entity.HasOne(d => d.TO_WAREHOUSENavigation).WithMany(p => p.TRANSFER_ORDERTO_WAREHOUSENavigations)
-                .HasForeignKey(d => d.TO_WAREHOUSE)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TO_TO_WH");
-        });
-
-        modelBuilder.Entity<TRANSFER_ORDER_DETAIL>(entity =>
-        {
-            entity.HasKey(e => e.DETAIL_ID).HasName("SYS_C009095");
-
-            entity.ToTable("TRANSFER_ORDER_DETAIL", tb => tb.HasComment("调拨单明细表"));
-
-            entity.HasIndex(e => e.PRODUCT_ID, "IDX_TOD_PRODUCT");
-
-            entity.HasIndex(e => e.TRANSFER_ID, "IDX_TOD_TRANSFER");
-
-            entity.Property(e => e.DETAIL_ID).HasPrecision(10);
-            entity.Property(e => e.PRODUCT_ID)
-                .HasPrecision(10)
-                .HasComment("商品编号");
-            entity.Property(e => e.QUANTITY)
-                .HasPrecision(10)
-                .HasComment("调拨数量");
-            entity.Property(e => e.TRANSFER_ID)
-                .HasPrecision(10)
-                .HasComment("调拨单编号");
-
-            entity.HasOne(d => d.PRODUCT).WithMany(p => p.TRANSFER_ORDER_DETAILs)
-                .HasForeignKey(d => d.PRODUCT_ID)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TOD_PRODUCT");
-
-            entity.HasOne(d => d.TRANSFER).WithMany(p => p.TRANSFER_ORDER_DETAILs)
-                .HasForeignKey(d => d.TRANSFER_ID)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TOD_TRANSFER");
-        });
-
         modelBuilder.Entity<WAREHOUSE>(entity =>
         {
-            entity.HasKey(e => e.WAREHOUSE_ID).HasName("SYS_C008970");
+            entity.HasKey(e => e.WAREHOUSE_ID).HasName("SYS_C008728");
 
             entity.ToTable("WAREHOUSE", tb => tb.HasComment("仓库/门店表：管理系统中的物理仓储节点"));
 

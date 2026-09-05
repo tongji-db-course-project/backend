@@ -86,6 +86,7 @@ builder.Services.AddSwaggerGen(options =>
         Description = "输入 JWT Token，格式：Bearer {token}"
     });
     options.OperationFilter<AuthorizationOperationFilter>();
+    options.OperationFilter<DeprecatedWarehouseOperationFilter>();
 });
 
 var app = builder.Build();
@@ -96,6 +97,16 @@ app.UseExceptionHandler(errorApp =>
     {
         var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+
+        if (exception is BusinessException businessException)
+        {
+            context.Response.StatusCode = businessException.Code;
+            context.Response.ContentType = "application/json; charset=utf-8";
+            await context.Response.WriteAsJsonAsync(
+                ApiResponse<object>.Fail(businessException.Code, businessException.Message));
+            return;
+        }
+
         logger.LogError(exception, "未处理异常，路径 {Path}", context.Request.Path);
 
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;

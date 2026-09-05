@@ -26,7 +26,7 @@ public class InventoryService : IInventoryService
         int page, int size, string? keyword, string? status, int? productId, int? warehouseId)
     {
         NormalizePage(ref page, ref size);
-        var resolvedWarehouseId = await ResolveWarehouseIdAsync(warehouseId);
+        var resolvedWarehouseId = await SystemWarehouse.GetIdAsync(_db, warehouseId);
 
         var query = BuildInventoryQuery(resolvedWarehouseId, keyword, status, productId);
         var total = await query.CountAsync();
@@ -51,7 +51,7 @@ public class InventoryService : IInventoryService
         if (inventoryId <= 0)
             throw new BusinessException(400, "库存编号必须大于0");
 
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var result = await _db.INVENTORies
             .AsNoTracking()
             .Where(x => x.INVENTORY_ID == inventoryId && x.WAREHOUSE_ID == warehouseId)
@@ -66,7 +66,7 @@ public class InventoryService : IInventoryService
         if (productId <= 0)
             throw new BusinessException(400, "商品编号必须大于0");
 
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var result = await _db.INVENTORies
             .AsNoTracking()
             .Where(x => x.PRODUCT_ID == productId && x.WAREHOUSE_ID == warehouseId)
@@ -88,7 +88,7 @@ public class InventoryService : IInventoryService
         int page, int size, string? keyword, string? status, int? warehouseId)
     {
         NormalizePage(ref page, ref size);
-        var resolvedWarehouseId = await ResolveWarehouseIdAsync(warehouseId);
+        var resolvedWarehouseId = await SystemWarehouse.GetIdAsync(_db, warehouseId);
 
         var query = BuildInventoryQuery(resolvedWarehouseId, keyword, status, null)
             .Where(x => x.PRODUCT.STOCK_WARNING != null &&
@@ -181,7 +181,7 @@ public class InventoryService : IInventoryService
         if (!AllowedManualRecordTypes.Contains(recordType))
             throw new BusinessException(400, "流水类型仅允许：手动入库、手动出库、盘点");
 
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var productExists = await _db.PRODUCTs
             .AsNoTracking()
             .AnyAsync(x => x.PRODUCT_ID == request.productId);
@@ -258,7 +258,7 @@ public class InventoryService : IInventoryService
 
     public async Task<IReadOnlyList<SupplierPurchaseSuggestionDto>> GetPurchaseSuggestionsAsync()
     {
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var warnings = await _db.PRODUCTs.AsNoTracking()
             .Where(x => x.STATUS == "在售")
             .Select(x => new
@@ -317,33 +317,6 @@ public class InventoryService : IInventoryService
         }
 
         return query;
-    }
-
-    private async Task<int> GetDefaultWarehouseIdAsync()
-    {
-        var warehouseIds = await _db.WAREHOUSEs
-            .AsNoTracking()
-            .Where(x => x.STATUS == "启用")
-            .OrderBy(x => x.WAREHOUSE_ID)
-            .Select(x => x.WAREHOUSE_ID)
-            .Take(2)
-            .ToListAsync();
-
-        return warehouseIds.Count switch
-        {
-            0 => throw new BusinessException(409, "系统未配置启用仓库"),
-            > 1 => throw new BusinessException(409, "单仓库模式下只能配置一个启用仓库"),
-            _ => warehouseIds[0]
-        };
-    }
-
-    private async Task<int> ResolveWarehouseIdAsync(int? warehouseId)
-    {
-        if (!warehouseId.HasValue) return await GetDefaultWarehouseIdAsync();
-        if (warehouseId.Value <= 0) throw new BusinessException(400, "仓库编号必须大于0");
-        if (!await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == warehouseId.Value))
-            throw new KeyNotFoundException("仓库不存在");
-        return warehouseId.Value;
     }
 
     private static InventoryDto MapInventory(INVENTORY inventory) => new()

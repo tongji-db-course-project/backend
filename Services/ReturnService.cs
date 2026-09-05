@@ -94,7 +94,7 @@ public class ReturnService : IReturnService
         var order = await _db.RETURN_ORDERs.Include(x => x.RETURN_ORDER_DETAILs).Include(x => x.SALE)
             .FirstOrDefaultAsync(x => x.RETURN_ID == returnId) ?? throw new KeyNotFoundException("退货单不存在");
         if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var productIds = order.RETURN_ORDER_DETAILs.Select(x => x.PRODUCT_ID).OrderBy(x => x).ToList();
         var inList = string.Join(",", productIds);
         await _db.Database.ExecuteSqlRawAsync(
@@ -199,20 +199,4 @@ public class ReturnService : IReturnService
         }).ToList() : null
     });
 
-    // 单仓库模式：退货入库仓库固定为唯一启用仓库，避免因未指定仓库而将库存退回到任意一条库存记录上。
-    private async Task<int> GetDefaultWarehouseIdAsync()
-    {
-        var warehouseIds = await _db.WAREHOUSEs.AsNoTracking()
-            .Where(x => x.STATUS == "启用")
-            .OrderBy(x => x.WAREHOUSE_ID)
-            .Select(x => x.WAREHOUSE_ID)
-            .Take(2)
-            .ToListAsync();
-        return warehouseIds.Count switch
-        {
-            0 => throw new InvalidOperationException("系统未配置启用仓库"),
-            > 1 => throw new InvalidOperationException("单仓库模式下只能配置一个启用仓库"),
-            _ => warehouseIds[0]
-        };
-    }
 }

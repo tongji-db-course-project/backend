@@ -141,8 +141,9 @@ public class PurchaseStockInRequest
     [Required(ErrorMessage = "入库操作人编号不能为空")]
     public int operatorId { get; set; }
 
-    [Required(ErrorMessage = "入库仓库编号不能为空")]
-    public int warehouseId { get; set; }
+    /// <summary>兼容旧客户端，已弃用；不传时由系统选择唯一启用仓库。</summary>
+    [Range(1, int.MaxValue)]
+    public int? warehouseId { get; set; }
 
     [Required(ErrorMessage = "入库日期不能为空")]
     public DateTime stockInDate { get; set; }
