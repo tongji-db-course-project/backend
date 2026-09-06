@@ -15,7 +15,8 @@ public interface IInventoryService
         int page, int size, string? keyword, string? status, int? warehouseId);
 
     Task<PageResult<InventoryRecordDto>> ListRecordsAsync(
-        int page, int size, string? keyword, int? productId, string? recordType);
+        int page, int size, string? keyword, int? productId, string? recordType,
+        string? sourceNo, int? operatorId, DateTime? startDate, DateTime? endDate);
 
     Task<InventoryDto> AdjustInventoryAsync(
         InventoryAdjustDto request, int operatorId);

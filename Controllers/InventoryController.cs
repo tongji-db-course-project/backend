@@ -48,12 +48,17 @@ public class InventoryController : ControllerBase
         [FromQuery] string? keyword = null,
         [FromQuery] int? productId = null,
         [FromQuery] string? recordType = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] string? sourceNo = null,
+        [FromQuery] int? operatorId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         return await ExecuteAsync(async () =>
             ApiResponse<PageResult<InventoryRecordDto>>.Ok(
                 await _inventoryService.ListRecordsAsync(
-                    page, size, keyword, productId, recordType ?? status)));
+                    page, size, keyword, productId, recordType ?? status,
+                    sourceNo, operatorId, startDate, endDate)));
     }
 
     [HttpGet("{productId:int}", Name = "getInventory")]
@@ -74,7 +79,8 @@ public class InventoryController : ControllerBase
         return await ExecuteAsync(async () => ApiResponse<InventoryDto>.Ok(
             await _inventoryService.AdjustInventoryAsync(new InventoryAdjustDto
             {
-                productId = productId, changeQty = request.changeQty, recordType = request.recordType,
+                productId = productId, changeQty = request.changeQty, actualStock = request.actualStock,
+                recordType = request.recordType,
                 remark = request.remark, sourceNo = request.sourceNo
             }, operatorId)));
     }

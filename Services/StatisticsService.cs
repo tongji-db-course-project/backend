@@ -223,11 +223,15 @@ public class StatisticsService : IStatisticsService
 
         var productCount = inventories.Select(i => i.PRODUCT_ID).Distinct().LongCount();
         var totalStock = (long)inventories.Sum(i => i.CURRENT_STOCK);
-        var warningProductCount = inventories
-            .Where(i => i.StockWarning.HasValue && i.CURRENT_STOCK < i.StockWarning.Value)
-            .Select(i => i.PRODUCT_ID)
-            .Distinct()
-            .LongCount();
+        // 与库存预警及采购建议保持相同口径：在售商品库存小于或等于安全库存即预警；
+        // 尚未建立 inventory 记录的商品按 0 库存计算。
+        var warningProductCount = await _db.PRODUCTs.AsNoTracking()
+            .Where(p => p.STATUS == "在售" && p.STOCK_WARNING.HasValue)
+            .LongCountAsync(p =>
+                (p.INVENTORies
+                    .Where(i => i.WAREHOUSE_ID == warehouseId)
+                    .Select(i => (int?)i.CURRENT_STOCK)
+                    .FirstOrDefault() ?? 0) <= p.STOCK_WARNING!.Value);
 
         const long warehouseCount = 1;
 
