@@ -35,7 +35,6 @@ public class CreateReturnRequest
 {
     [Range(1, int.MaxValue)] public int saleId { get; set; }
     public int? memberId { get; set; }
-    [Range(1, int.MaxValue)] public int operatorId { get; set; }
     [MaxLength(200)] public string? remark { get; set; }
     [Required, MinLength(1)] public List<CreateReturnDetailRequest> details { get; set; } = new();
 }
@@ -49,6 +48,5 @@ public class CreateReturnDetailRequest
 
 public class RejectReturnRequest
 {
-    public int approverId { get; set; }
     [MaxLength(200)] public string? remark { get; set; }
 }

@@ -8,6 +8,11 @@ namespace backend.Services;
 
 public class ReturnService : IReturnService
 {
+    private const string Pending = "待处理";
+    private const string Approved = "已审核";
+    private const string Completed = "已完成";
+    private const string Rejected = "已拒绝";
+
     private readonly AppDbContext _db;
     public ReturnService(AppDbContext db) => _db = db;
 
@@ -32,10 +37,10 @@ public class ReturnService : IReturnService
         await Project(_db.RETURN_ORDERs.AsNoTracking().Where(x => x.RETURN_ID == returnId), true).FirstOrDefaultAsync()
         ?? throw new KeyNotFoundException("退货单不存在");
 
-    public async Task<ReturnOrderDto> CreateAsync(CreateReturnRequest request)
+    public async Task<ReturnOrderDto> CreateAsync(CreateReturnRequest request, int operatorId)
     {
         if (request.details.Count == 0) throw new ArgumentException("退货明细不能为空");
-        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.operatorId))
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId && x.STATUS == "启用"))
             throw new KeyNotFoundException("经办人不存在");
 
         // FOR UPDATE 行锁：串行化对同一销售单的并发退货创建，避免并发下累计退货量各自通过校验导致超退。
@@ -69,9 +74,9 @@ public class ReturnService : IReturnService
             RETURN_NO = $"RT{now:yyyyMMddHHmmssfff}{Guid.NewGuid():N}"[..30],
             SALE_ID = sale.SALE_ID,
             MEMBER_ID = sale.MEMBER_ID,
-            OPERATOR_ID = request.operatorId,
+            OPERATOR_ID = operatorId,
             RETURN_DATE = now,
-            STATUS = "待处理",
+            STATUS = Pending,
             CREATE_TIME = now,
             UPDATE_TIME = now,
             REMARK = request.remark?.Trim()
@@ -107,7 +112,9 @@ public class ReturnService : IReturnService
                 // 保证单价*数量 = 该行 SUBTOTAL；如果反推差了几分钱就直接落在 SUBTOTAL 字段
                 order.RETURN_ORDER_DETAILs.Add(new RETURN_ORDER_DETAIL
                 {
-                    PRODUCT_ID = productId, QUANTITY = qty, REFUND_PRICE = lastUnitPrice,
+                    PRODUCT_ID = productId,
+                    QUANTITY = qty,
+                    REFUND_PRICE = lastUnitPrice,
                     SUBTOTAL = lastSubtotal
                 });
                 subtotalSum += lastSubtotal;
@@ -134,8 +141,8 @@ public class ReturnService : IReturnService
             ORDER_TYPE = "退货单",
             ORDER_ID = order.RETURN_ID,
             OLD_STATUS = null,
-            NEW_STATUS = "待处理",
-            OPERATOR_ID = request.operatorId,
+            NEW_STATUS = Pending,
+            OPERATOR_ID = operatorId,
             CHANGE_TIME = now,
             REMARK = request.remark
         });
@@ -144,13 +151,42 @@ public class ReturnService : IReturnService
         return await GetAsync(order.RETURN_ID);
     }
 
-    public async Task<ReturnOrderDto> ConfirmAsync(int returnId)
+    public async Task<ReturnOrderDto> ApproveAsync(int returnId, int approverId)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
-        var order = await _db.RETURN_ORDERs.Include(x => x.RETURN_ORDER_DETAILs).Include(x => x.SALE)
+        var order = await _db.RETURN_ORDERs.FirstOrDefaultAsync(x => x.RETURN_ID == returnId)
+            ?? throw new KeyNotFoundException("退货单不存在");
+        if (order.STATUS != Pending) throw new InvalidOperationException("仅待处理退货单可以审核");
+
+        var now = DateTime.Now;
+        order.STATUS = Approved;
+        order.UPDATE_TIME = now;
+        _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
+        {
+            ORDER_TYPE = "退货单",
+            ORDER_ID = returnId,
+            OLD_STATUS = Pending,
+            NEW_STATUS = Approved,
+            OPERATOR_ID = approverId,
+            CHANGE_TIME = now,
+            REMARK = "销售退货审核通过，等待入库"
+        });
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return await GetAsync(returnId);
+    }
+
+    public async Task<ReturnOrderDto> CompleteAsync(int returnId, int operatorId)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await _db.Database.ExecuteSqlRawAsync("SELECT * FROM RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
+        var order = await _db.RETURN_ORDERs
+            .Include(x => x.RETURN_ORDER_DETAILs)
+            .Include(x => x.SALE)
+            .ThenInclude(x => x.SALE_ORDER_DETAILs)
             .FirstOrDefaultAsync(x => x.RETURN_ID == returnId) ?? throw new KeyNotFoundException("退货单不存在");
-        if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
+        if (order.STATUS != Approved) throw new InvalidOperationException("仅已审核退货单可以确认入库");
         var warehouseId = await GetDefaultWarehouseIdAsync();
         var productIds = order.RETURN_ORDER_DETAILs.Select(x => x.PRODUCT_ID).OrderBy(x => x).ToList();
         var inList = string.Join(",", productIds);
@@ -172,7 +208,7 @@ public class ReturnService : IReturnService
                 SOURCE_NO = order.RETURN_NO,
                 CHANGE_QTY = detail.QUANTITY,
                 REMAIN_QTY = inventory.CURRENT_STOCK,
-                OPERATOR_ID = order.OPERATOR_ID,
+                OPERATOR_ID = operatorId,
                 RECORD_TIME = now,
                 REMARK = "销售退货入库"
             });
@@ -201,8 +237,10 @@ public class ReturnService : IReturnService
             }
             var saleTotal = order.SALE.TOTAL_AMOUNT.GetValueOrDefault();
             var ratio = saleTotal <= 0 ? 0 : Math.Clamp(refundedSaleAmount / saleTotal, 0m, 1m);
-            var earned = salePoints.Where(x => x.CHANGE_POINTS > 0).Sum(x => x.CHANGE_POINTS);
-            var redeemed = -salePoints.Where(x => x.CHANGE_POINTS < 0).Sum(x => x.CHANGE_POINTS);
+            // 只以原销售产生的积分为冲销基数；排除之前部分退货生成的“增加/扣减”冲销流水，
+            // 否则同一销售单第二次退货会重复把上一次冲销计入基数。
+            var earned = salePoints.Where(x => x.CHANGE_TYPE == "增加").Sum(x => x.CHANGE_POINTS);
+            var redeemed = -salePoints.Where(x => x.CHANGE_TYPE == "抵现").Sum(x => x.CHANGE_POINTS);
             var reversal = (int)Math.Round((redeemed - earned) * ratio, MidpointRounding.AwayFromZero);
             if (reversal != 0)
             {
@@ -220,16 +258,16 @@ public class ReturnService : IReturnService
             }
         }
 
-        order.STATUS = "已完成"; order.UPDATE_TIME = now;
+        order.STATUS = Completed; order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
             ORDER_TYPE = "退货单",
             ORDER_ID = returnId,
-            OLD_STATUS = "待处理",
-            NEW_STATUS = "已完成",
-            OPERATOR_ID = order.OPERATOR_ID,
+            OLD_STATUS = Approved,
+            NEW_STATUS = Completed,
+            OPERATOR_ID = operatorId,
             CHANGE_TIME = now,
-            REMARK = "确认退货并完成退款、入库及积分冲销"
+            REMARK = "确认销售退货入库并完成退款、积分冲销"
         });
         await _db.SaveChangesAsync();
         if (order.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, order.MEMBER_ID.Value, now);
@@ -244,15 +282,15 @@ public class ReturnService : IReturnService
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
         var order = await _db.RETURN_ORDERs.FirstOrDefaultAsync(x => x.RETURN_ID == returnId)
             ?? throw new KeyNotFoundException("退货单不存在");
-        if (order.STATUS != "待处理") throw new InvalidOperationException("当前退货单已处理");
+        if (order.STATUS != Pending) throw new InvalidOperationException("仅待处理退货单可以拒绝");
         var now = DateTime.Now;
-        order.STATUS = "已拒绝"; order.UPDATE_TIME = now;
+        order.STATUS = Rejected; order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
             ORDER_TYPE = "退货单",
             ORDER_ID = returnId,
-            OLD_STATUS = "待处理",
-            NEW_STATUS = "已拒绝",
+            OLD_STATUS = Pending,
+            NEW_STATUS = Rejected,
             OPERATOR_ID = operatorId,
             CHANGE_TIME = now,
             REMARK = string.IsNullOrWhiteSpace(remark) ? "拒绝退货" : remark.Trim()

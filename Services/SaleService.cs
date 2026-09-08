@@ -23,7 +23,8 @@ public class SaleService : ISaleService
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             var value = keyword.Trim();
-            query = query.Where(x => x.SALE_NO.Contains(value) ||
+            var saleId = int.TryParse(value, out var parsedSaleId) ? parsedSaleId : (int?)null;
+            query = query.Where(x => (saleId.HasValue && x.SALE_ID == saleId.Value) || x.SALE_NO.Contains(value) ||
                 (x.MEMBER != null && (x.MEMBER.MEMBER_NAME.Contains(value) || x.MEMBER.PHONE.Contains(value))));
         }
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.STATUS == status.Trim());
