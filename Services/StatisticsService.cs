@@ -223,15 +223,11 @@ public class StatisticsService : IStatisticsService
 
         var productCount = inventories.Select(i => i.PRODUCT_ID).Distinct().LongCount();
         var totalStock = (long)inventories.Sum(i => i.CURRENT_STOCK);
-        // 与库存预警及采购建议保持相同口径：在售商品库存小于或等于安全库存即预警；
-        // 尚未建立 inventory 记录的商品按 0 库存计算。
         var warningProductCount = await _db.PRODUCTs.AsNoTracking()
             .Where(p => p.STATUS == "在售" && p.STOCK_WARNING.HasValue)
             .LongCountAsync(p =>
-                (p.INVENTORies
-                    .Where(i => i.WAREHOUSE_ID == warehouseId)
-                    .Select(i => (int?)i.CURRENT_STOCK)
-                    .FirstOrDefault() ?? 0) <= p.STOCK_WARNING!.Value);
+                (p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                    .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0) <= p.STOCK_WARNING!.Value);
 
         const long warehouseCount = 1;
 
@@ -290,14 +286,19 @@ public class StatisticsService : IStatisticsService
             .GroupBy(x => new { x.PRODUCT_ID, x.PRODUCT.PRODUCT_NAME, x.PRODUCT.PURCHASE_PRICE })
             .Select(x => new
             {
-                x.Key.PRODUCT_ID, x.Key.PRODUCT_NAME, PurchasePrice = x.Key.PURCHASE_PRICE ?? 0,
-                Quantity = x.Sum(d => d.SALE_QUANTITY ?? 0), Amount = x.Sum(d => (d.SALE_QUANTITY ?? 0) * (d.SALE_PRICE ?? 0))
+                x.Key.PRODUCT_ID,
+                x.Key.PRODUCT_NAME,
+                PurchasePrice = x.Key.PURCHASE_PRICE ?? 0,
+                Quantity = x.Sum(d => d.SALE_QUANTITY ?? 0),
+                Amount = x.Sum(d => (d.SALE_QUANTITY ?? 0) * (d.SALE_PRICE ?? 0))
             }).ToListAsync();
         var returns = await _db.RETURN_ORDER_DETAILs.AsNoTracking()
             .Where(x => x.RETURN.STATUS == "已完成" && x.RETURN.RETURN_DATE >= start && x.RETURN.RETURN_DATE < end)
             .GroupBy(x => x.PRODUCT_ID).Select(x => new
             {
-                ProductId = x.Key, Quantity = x.Sum(d => d.QUANTITY), Amount = x.Sum(d => d.SUBTOTAL)
+                ProductId = x.Key,
+                Quantity = x.Sum(d => d.QUANTITY),
+                Amount = x.Sum(d => d.SUBTOTAL)
             }).ToDictionaryAsync(x => x.ProductId);
         var list = sales.Select(x =>
         {
@@ -307,8 +308,11 @@ public class StatisticsService : IStatisticsService
             var cost = quantity * x.PurchasePrice;
             return new ProductProfitRankDto
             {
-                productId = x.PRODUCT_ID, productName = x.PRODUCT_NAME, netSaleQuantity = quantity,
-                netSaleAmount = Math.Round(revenue, 2), purchaseCost = Math.Round(cost, 2),
+                productId = x.PRODUCT_ID,
+                productName = x.PRODUCT_NAME,
+                netSaleQuantity = quantity,
+                netSaleAmount = Math.Round(revenue, 2),
+                purchaseCost = Math.Round(cost, 2),
                 grossProfit = Math.Round(revenue - cost, 2),
                 grossProfitRate = revenue > 0 ? Math.Round((revenue - cost) / revenue, 4) : 0
             };
@@ -318,81 +322,280 @@ public class StatisticsService : IStatisticsService
         return list.OrderByDescending(x => x.grossProfit).ToList();
     }
 
-    public async Task<List<InventoryTurnoverDto>> GetInventoryTurnoverAsync(DateTime startDate, DateTime endDate)
+    public async Task<PageResult<InventoryTurnoverDto>> GetInventoryTurnoverAsync(
+        DateTime startDate,
+        DateTime endDate,
+        int? productId = null,
+        int? categoryId = null,
+        string avgMethod = "simple",
+        decimal slowThreshold = 2,
+        int page = 1,
+        int pageSize = 20,
+        bool onlyWithSales = false)
     {
+        if (page < 1) page = 1;
+        if (pageSize <= 0) pageSize = 50;
+
         var start = startDate.Date; var end = endDate.Date.AddDays(1);
         var warehouseId = await SystemWarehouse.GetIdAsync(_db);
-        var products = await _db.PRODUCTs.AsNoTracking().Select(x => new
+
+        var nextPeriodStart = endDate.Date.AddDays(1);
+        var changesQuery = _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => r.RECORD_TIME >= startDate.Date && r.RECORD_TIME < nextPeriodStart);
+        if (productId.HasValue) changesQuery = changesQuery.Where(r => r.PRODUCT_ID == productId.Value);
+        var changes = await changesQuery.GroupBy(x => x.PRODUCT_ID).Select(x => new
         {
-            x.PRODUCT_ID, x.PRODUCT_NAME,
-            Ending = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
-                .Sum(i => (int?)i.CURRENT_STOCK) ?? 0
+            ProductId = x.Key,
+            Change = x.Sum(r => r.CHANGE_QTY),
+            Sold = -x.Where(r => r.RECORD_TYPE != null && r.RECORD_TYPE.Contains("销售")).Sum(r => r.CHANGE_QTY)
+        }).ToDictionaryAsync(x => x.ProductId);
+
+        var afterQuery = _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => r.RECORD_TIME >= nextPeriodStart);
+        if (productId.HasValue) afterQuery = afterQuery.Where(r => r.PRODUCT_ID == productId.Value);
+        var afterChanges = await afterQuery.GroupBy(x => x.PRODUCT_ID).Select(x => new
+        {
+            ProductId = x.Key,
+            Change = x.Sum(r => r.CHANGE_QTY)
+        }).ToDictionaryAsync(x => x.ProductId);
+
+        var prodQuery = _db.PRODUCTs.AsNoTracking().AsQueryable();
+        if (productId.HasValue) prodQuery = prodQuery.Where(p => p.PRODUCT_ID == productId.Value);
+        if (categoryId.HasValue) prodQuery = prodQuery.Where(p => p.CATEGORY_ID == categoryId.Value);
+
+        if (onlyWithSales)
+        {
+            var soldIds = changes.Keys.ToList();
+            prodQuery = prodQuery.Where(p => soldIds.Contains(p.PRODUCT_ID));
+        }
+
+        var products = await prodQuery.Select(x => new
+        {
+            x.PRODUCT_ID,
+            x.PRODUCT_NAME,
+            CurrentEnding = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                .Sum(i => (int?)i.CURRENT_STOCK) ?? 0,
+            HasInventory = x.INVENTORies.Any(i => i.WAREHOUSE_ID == warehouseId)
         }).ToListAsync();
-        var changes = await _db.INVENTORY_RECORDs.AsNoTracking().Where(x => x.RECORD_TIME >= start && x.RECORD_TIME < end)
-            .GroupBy(x => x.PRODUCT_ID).Select(x => new
-            {
-                ProductId = x.Key, Change = x.Sum(r => r.CHANGE_QTY),
-                Sold = -x.Where(r => r.RECORD_TYPE == "销售").Sum(r => r.CHANGE_QTY)
-            }).ToDictionaryAsync(x => x.ProductId);
-        return products.Select(x =>
+
+        var productIds = products.Select(p => p.PRODUCT_ID).ToList();
+
+        var endLimit = endDate.Date.AddDays(1).AddTicks(-1);
+        var startLimitExclusive = startDate.Date;
+
+        var recordsBeforeEndAll = await _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => productIds.Contains(r.PRODUCT_ID) && r.RECORD_TIME <= endLimit)
+            .OrderBy(r => r.PRODUCT_ID).ThenBy(r => r.RECORD_TIME)
+            .ToListAsync();
+
+        var recordsBeforeStartAll = await _db.INVENTORY_RECORDs.AsNoTracking()
+            .Where(r => productIds.Contains(r.PRODUCT_ID) && r.RECORD_TIME < startLimitExclusive)
+            .OrderBy(r => r.PRODUCT_ID).ThenBy(r => r.RECORD_TIME)
+            .ToListAsync();
+
+        var lastRemainBeforeEnd = recordsBeforeEndAll
+            .GroupBy(r => r.PRODUCT_ID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.RECORD_TIME).First().REMAIN_QTY);
+
+        var lastRemainBeforeStart = recordsBeforeStartAll
+            .GroupBy(r => r.PRODUCT_ID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.RECORD_TIME).First().REMAIN_QTY);
+
+        var periodDays = (endDate.Date - startDate.Date).Days + 1;
+
+        var list = products.Select(x =>
         {
             var flow = changes.GetValueOrDefault(x.PRODUCT_ID);
-            var beginning = x.Ending - (flow?.Change ?? 0);
-            var average = Math.Max(0, (beginning + x.Ending) / 2m);
+            var endingAtEndDate = lastRemainBeforeEnd.TryGetValue(x.PRODUCT_ID, out var endRemain) ? endRemain : 0;
+            var beginning = lastRemainBeforeStart.TryGetValue(x.PRODUCT_ID, out var startRemain) ? startRemain : 0;
+            var average = Math.Max(0, (beginning + endingAtEndDate) / 2m);
             var sold = flow?.Sold ?? 0;
+            var turnover = average > 0 ? Math.Round(sold / average, 4) : 0;
+            string status = "normal";
+            if (sold == 0 && endingAtEndDate > 0) status = "aged";
+            else if (sold > 0 && turnover < slowThreshold) status = "slow";
+
             return new InventoryTurnoverDto
             {
-                productId = x.PRODUCT_ID, productName = x.PRODUCT_NAME, soldQuantity = sold,
-                beginningStock = beginning, endingStock = x.Ending, averageStock = average,
-                turnoverTimes = average > 0 ? Math.Round(sold / average, 4) : 0,
-                stagnant = sold == 0 && x.Ending > 0
+                productId = x.PRODUCT_ID,
+                productName = x.PRODUCT_NAME,
+                soldQuantity = sold,
+                beginningStock = beginning,
+
+                endingStock = endingAtEndDate,
+                averageStock = average,
+                turnoverTimes = turnover,
+                stagnant = sold == 0 && endingAtEndDate > 0,
+                daysOfInventory = null,
+                status = status
             };
-        }).OrderBy(x => x.turnoverTimes).ToList();
+        })
+        .Where(x => x.beginningStock > 0 || x.endingStock > 0 || changes.ContainsKey(x.productId) || products.Any(p => p.PRODUCT_ID == x.productId && p.HasInventory))
+        .OrderByDescending(x => x.soldQuantity).ThenBy(x => x.turnoverTimes).ToList();
+
+        var total = list.Count;
+        var pageList = list.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return new PageResult<InventoryTurnoverDto>
+        {
+            list = pageList,
+            total = total,
+            page = page,
+            size = pageSize
+        };
     }
 
     public async Task<DailySettlementDto> GenerateDailySettlementAsync(DateTime date)
     {
         var day = date.Date;
-        var existing = await _db.DAILY_SETTLEMENTs.FirstOrDefaultAsync(x => x.SETTLEMENT_DATE == day);
-        if (existing is not null) return ToDailySettlementDto(existing);
+        var today = DateTime.Now.Date;
+        if (day >= today)
+            throw new ArgumentException("只能生成已经闭店的历史营业日日结");
         var end = day.AddDays(1);
+
+        var existing = await _db.DAILY_SETTLEMENTs.AsNoTracking()
+            .Where(x => x.SETTLEMENT_DATE == day)
+            .Select(x => new DAILY_SETTLEMENT
+            {
+                SETTLEMENT_ID = x.SETTLEMENT_ID,
+                SETTLEMENT_DATE = x.SETTLEMENT_DATE,
+                TOTAL_SALES = x.TOTAL_SALES,
+                CASH_AMOUNT = x.CASH_AMOUNT,
+                WECHAT_AMOUNT = x.WECHAT_AMOUNT,
+                ALIPAY_AMOUNT = x.ALIPAY_AMOUNT,
+                PROMOTION_DISCOUNT = x.PROMOTION_DISCOUNT,
+                MEMBER_DISCOUNT = x.MEMBER_DISCOUNT,
+                COUPON_DEDUCT = x.COUPON_DEDUCT,
+                POINT_DEDUCT = x.POINT_DEDUCT,
+                POINT_CONSUMED = x.POINT_CONSUMED,
+                ORDER_COUNT = x.ORDER_COUNT,
+                STATUS = x.STATUS,
+                CREATE_TIME = x.CREATE_TIME
+            })
+            .FirstOrDefaultAsync();
+        if (existing is not null)
+        {
+            var existingRefund = await _db.RETURN_ORDERs.AsNoTracking()
+                .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
+                .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
+            return ToDailySettlementDto(existing, existingRefund);
+        }
         var sales = await _db.SALE_ORDERs.AsNoTracking()
-            .Where(x => x.STATUS == "已完成" && x.SALE_DATE >= day && x.SALE_DATE < end).ToListAsync();
+            .Where(x => x.STATUS == "已完成" && x.SALE_DATE >= day && x.SALE_DATE < end)
+            .Select(s => new
+            {
+                s.SALE_ID,
+                s.PAID_AMOUNT,
+                s.TOTAL_AMOUNT,
+                s.DISCOUNT_AMOUNT,
+                s.CREATE_TIME,
+                s.UPDATE_TIME,
+                s.MEMBER_ID,
+                s.PAY_TYPE
+            })
+            .ToListAsync();
+
         var saleIds = sales.Select(x => x.SALE_ID).ToList();
-        var pointConsumed = saleIds.Count == 0 ? 0 : -(await _db.POINT_RECORDs.AsNoTracking()
-            .Where(x => saleIds.Contains(x.SALE_ID ?? 0) && x.CHANGE_TYPE == "抵现").SumAsync(x => (int?)x.CHANGE_POINTS) ?? 0);
-        var pointDeduct = sales.Sum(x => x.POINT_DEDUCT ?? 0);
-        var couponDeduct = sales.Sum(x => x.COUPON_DEDUCT ?? 0);
-        var memberDiscount = sales.Sum(x => x.MEMBER_DISCOUNT ?? 0);
-        var promotionDiscount = sales.Sum(x => x.PROMOTION_DISCOUNT ?? 0);
+
+        var pointConsumed = saleIds.Count == 0 ? 0 : (await _db.POINT_RECORDs.AsNoTracking()
+            .Where(x => x.SALE_ID != null && saleIds.Contains(x.SALE_ID.Value) && x.CHANGE_TYPE == "抵现")
+            .SumAsync(x => (int?)x.CHANGE_POINTS) ?? 0);
+
+        var couponDeduct = 0m;
+        if (saleIds.Count > 0)
+        {
+            couponDeduct = await (from mc in _db.MEMBER_COUPONs.AsNoTracking()
+                                  join t in _db.COUPON_TEMPLATEs.AsNoTracking() on mc.TEMPLATE_ID equals t.TEMPLATE_ID
+                                  where mc.SALE_ID != null && saleIds.Contains(mc.SALE_ID.Value)
+                                        && mc.USE_TIME >= day && mc.USE_TIME < end
+                                        && (mc.STATUS == "已使用" || mc.STATUS == "已使用")
+                                  select (decimal?)t.FACE_VALUE).SumAsync() ?? 0;
+        }
+
+        var pointDeduct = 0m;
+        var memberDiscount = 0m;
+        var promotionDiscount = 0m;
+        var refundAmount = await _db.RETURN_ORDERs.AsNoTracking()
+            .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
+            .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
+        var totalSales = sales.Sum(x => x.PAID_AMOUNT ?? 0);
         var settlement = new DAILY_SETTLEMENT
         {
-            SETTLEMENT_DATE = day, TOTAL_SALES = sales.Sum(x => x.PAID_AMOUNT ?? 0),
-            CASH_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("现金")).Sum(x => x.PAID_AMOUNT ?? 0),
-            WECHAT_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("微信")).Sum(x => x.PAID_AMOUNT ?? 0),
-            ALIPAY_AMOUNT = sales.Where(x => x.PAY_TYPE != null && x.PAY_TYPE.Contains("支付宝")).Sum(x => x.PAID_AMOUNT ?? 0),
-            PROMOTION_DISCOUNT = promotionDiscount, MEMBER_DISCOUNT = memberDiscount, COUPON_DEDUCT = couponDeduct,
-            POINT_DEDUCT = pointDeduct, POINT_CONSUMED = pointConsumed,
-            ORDER_COUNT = sales.Count, STATUS = "已生成", CREATE_TIME = DateTime.Now
+            SETTLEMENT_DATE = day,
+            TOTAL_SALES = totalSales,
+            CASH_AMOUNT = 0,
+            WECHAT_AMOUNT = 0,
+            ALIPAY_AMOUNT = 0,
+            PROMOTION_DISCOUNT = promotionDiscount,
+            MEMBER_DISCOUNT = memberDiscount,
+            COUPON_DEDUCT = couponDeduct,
+            POINT_DEDUCT = pointDeduct,
+            POINT_CONSUMED = pointConsumed,
+            ORDER_COUNT = sales.Count,
+            STATUS = "已生成",
+            CREATE_TIME = DateTime.Now
         };
         _db.DAILY_SETTLEMENTs.Add(settlement);
-        await _db.SaveChangesAsync();
-        return ToDailySettlementDto(settlement);
+        try
+        {
+            await _db.SaveChangesAsync();
+            return ToDailySettlementDto(settlement, refundAmount);
+        }
+        catch (DbUpdateException)
+        {
+            var existingAfterConflict = await _db.DAILY_SETTLEMENTs.AsNoTracking()
+                .Where(x => x.SETTLEMENT_DATE == day)
+                .Select(x => new DAILY_SETTLEMENT
+                {
+                    SETTLEMENT_ID = x.SETTLEMENT_ID,
+                    SETTLEMENT_DATE = x.SETTLEMENT_DATE,
+                    TOTAL_SALES = x.TOTAL_SALES,
+                    CASH_AMOUNT = x.CASH_AMOUNT,
+                    WECHAT_AMOUNT = x.WECHAT_AMOUNT,
+                    ALIPAY_AMOUNT = x.ALIPAY_AMOUNT,
+                    PROMOTION_DISCOUNT = x.PROMOTION_DISCOUNT,
+                    MEMBER_DISCOUNT = x.MEMBER_DISCOUNT,
+                    COUPON_DEDUCT = x.COUPON_DEDUCT,
+                    POINT_DEDUCT = x.POINT_DEDUCT,
+                    POINT_CONSUMED = x.POINT_CONSUMED,
+                    ORDER_COUNT = x.ORDER_COUNT,
+                    STATUS = x.STATUS,
+                    CREATE_TIME = x.CREATE_TIME
+                })
+                .FirstOrDefaultAsync();
+            if (existingAfterConflict is not null)
+                return ToDailySettlementDto(existingAfterConflict, refundAmount);
+            throw;
+        }
     }
 
     public async Task<DailySettlementDto> GetDailySettlementAsync(DateTime date)
     {
         var record = await _db.DAILY_SETTLEMENTs.AsNoTracking().FirstOrDefaultAsync(x => x.SETTLEMENT_DATE == date.Date)
             ?? throw new KeyNotFoundException("当日尚未生成营业结转");
-        return ToDailySettlementDto(record);
+        var day = date.Date;
+        var end = day.AddDays(1);
+        var refundAmount = await _db.RETURN_ORDERs.AsNoTracking()
+            .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
+            .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
+        return ToDailySettlementDto(record, refundAmount);
     }
 
-    private static DailySettlementDto ToDailySettlementDto(DAILY_SETTLEMENT x) => new()
+    private static DailySettlementDto ToDailySettlementDto(DAILY_SETTLEMENT x, decimal refundAmount) => new()
     {
-        settlementId = x.SETTLEMENT_ID, settlementDate = x.SETTLEMENT_DATE, totalSales = x.TOTAL_SALES ?? 0,
-        cashAmount = x.CASH_AMOUNT ?? 0, wechatAmount = x.WECHAT_AMOUNT ?? 0, alipayAmount = x.ALIPAY_AMOUNT ?? 0,
-        promotionDiscount = x.PROMOTION_DISCOUNT ?? 0, memberDiscount = x.MEMBER_DISCOUNT ?? 0,
-        couponDeduct = x.COUPON_DEDUCT ?? 0, pointDeduct = x.POINT_DEDUCT ?? 0, pointConsumed = x.POINT_CONSUMED ?? 0,
-        orderCount = x.ORDER_COUNT ?? 0, status = x.STATUS ?? string.Empty, createTime = x.CREATE_TIME
+        settlementId = x.SETTLEMENT_ID,
+        settlementDate = x.SETTLEMENT_DATE,
+        totalSales = x.TOTAL_SALES ?? 0,
+        refundAmount = refundAmount,
+        netSales = (x.TOTAL_SALES ?? 0) - refundAmount,
+        orderCount = x.ORDER_COUNT ?? 0,
+        promotionDiscount = x.PROMOTION_DISCOUNT ?? 0,
+        memberDiscount = x.MEMBER_DISCOUNT ?? 0,
+        couponDeduct = x.COUPON_DEDUCT ?? 0,
+        pointDeduct = x.POINT_DEDUCT ?? 0,
+        pointConsumed = x.POINT_CONSUMED ?? 0,
+        status = x.STATUS ?? string.Empty,
+        createTime = x.CREATE_TIME
     };
+
 }

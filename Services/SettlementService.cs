@@ -47,11 +47,14 @@ public class SettlementService : ISettlementService
             throw new InvalidOperationException("该采购单已生成结算记录");
         var record = new SUPPLIER_SETTLEMENT
         {
-            SUPPLIER_ID = request.supplierId, PURCHASE_ID = request.purchaseId,
+            SUPPLIER_ID = request.supplierId,
+            PURCHASE_ID = request.purchaseId,
             SETTLEMENT_DATE = request.settlementDate ?? DateTime.Today,
-            SETTLEMENT_AMOUNT = request.settlementAmount, PAID_AMOUNT = request.paidAmount,
+            SETTLEMENT_AMOUNT = request.settlementAmount,
+            PAID_AMOUNT = request.paidAmount,
             UNPAID_AMOUNT = request.settlementAmount - request.paidAmount,
-            STATUS = Status(request.settlementAmount, request.paidAmount), REMARK = request.remark?.Trim()
+            STATUS = Status(request.settlementAmount, request.paidAmount),
+            REMARK = request.remark?.Trim()
         };
         _db.SUPPLIER_SETTLEMENTs.Add(record);
         await _db.SaveChangesAsync();
@@ -77,11 +80,18 @@ public class SettlementService : ISettlementService
 
     private static IQueryable<SettlementDto> Project(IQueryable<SUPPLIER_SETTLEMENT> query) => query.Select(x => new SettlementDto
     {
-        settlementId = x.SETTLEMENT_ID, supplierId = x.SUPPLIER_ID, supplierName = x.SUPPLIER.SUPPLIER_NAME,
-        purchaseId = x.PURCHASE_ID, purchaseCode = x.PURCHASE.ORDER_CODE, settlementDate = x.SETTLEMENT_DATE,
+        settlementId = x.SETTLEMENT_ID,
+        supplierId = x.SUPPLIER_ID,
+        supplierName = x.SUPPLIER.SUPPLIER_NAME,
+        purchaseId = x.PURCHASE_ID,
+        purchaseCode = x.PURCHASE.ORDER_CODE,
+        settlementDate = x.SETTLEMENT_DATE,
         dueDate = x.SETTLEMENT_DATE.HasValue ? x.SETTLEMENT_DATE.Value.AddDays(x.SUPPLIER.PAYMENT_CYCLE ?? 0) : null,
-        settlementAmount = x.SETTLEMENT_AMOUNT, paidAmount = x.PAID_AMOUNT ?? 0, unpaidAmount = x.UNPAID_AMOUNT,
-        status = x.STATUS, remark = x.REMARK
+        settlementAmount = x.SETTLEMENT_AMOUNT,
+        paidAmount = x.PAID_AMOUNT ?? 0,
+        unpaidAmount = x.UNPAID_AMOUNT,
+        status = x.STATUS,
+        remark = x.REMARK
     });
 
     private static string Status(decimal total, decimal paid) => paid <= 0 ? "未结算" : paid >= total ? "已结算" : "部分结算";

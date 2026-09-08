@@ -22,6 +22,9 @@ public class InventoryTurnoverDto
     public decimal averageStock { get; set; }
     public decimal turnoverTimes { get; set; }
     public bool stagnant { get; set; }
+    public decimal? daysOfInventory { get; set; }
+    //周转状态：normal，slow，aged
+    public string status { get; set; } = "normal";
 }
 
 public class DailySettlementDto
@@ -29,15 +32,14 @@ public class DailySettlementDto
     public int settlementId { get; set; }
     public DateTime settlementDate { get; set; }
     public decimal totalSales { get; set; }
-    public decimal cashAmount { get; set; }
-    public decimal wechatAmount { get; set; }
-    public decimal alipayAmount { get; set; }
+    public decimal refundAmount { get; set; }
+    public decimal netSales { get; set; }
+    public int orderCount { get; set; }
     public decimal promotionDiscount { get; set; }
     public decimal memberDiscount { get; set; }
     public decimal couponDeduct { get; set; }
     public decimal pointDeduct { get; set; }
     public int pointConsumed { get; set; }
-    public int orderCount { get; set; }
     public string status { get; set; } = string.Empty;
     public DateTime? createTime { get; set; }
 }

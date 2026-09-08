@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using backend.Dtos;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -5,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[ApiController, Route("purchase-returns"), Authorize]
+[ApiController, Route("purchase-returns"), Authorize(Roles = "1,2")]
 public class PurchaseReturnsController : ControllerBase
 {
     private readonly IPurchaseReturnService _service;
@@ -17,30 +18,53 @@ public class PurchaseReturnsController : ControllerBase
         await Execute(() => _service.ListAsync(page, size, keyword, status, supplierId, purchaseId, startDate, endDate));
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] SavePurchaseReturnRequest request) =>
-        await Execute(() => _service.CreateAsync(request));
+    [Authorize(Roles = "2")]
+    public async Task<IActionResult> Create([FromBody] SavePurchaseReturnRequest request)
+    {
+        if (!TryGetCurrentUserId(out var operatorId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        return await Execute(() => _service.CreateAsync(request, operatorId));
+    }
 
     [HttpGet("{returnId:int}")]
     public async Task<IActionResult> Get(int returnId) => await Execute(() => _service.GetAsync(returnId));
 
     [HttpPut("{returnId:int}")]
-    public async Task<IActionResult> Update(int returnId, [FromBody] SavePurchaseReturnRequest request) =>
-        await Execute(() => _service.UpdateAsync(returnId, request));
+    [Authorize(Roles = "2")]
+    public async Task<IActionResult> Update(int returnId, [FromBody] SavePurchaseReturnRequest request)
+    {
+        if (!TryGetCurrentUserId(out var operatorId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        return await Execute(() => _service.UpdateAsync(returnId, request, operatorId));
+    }
 
     [HttpPost("{returnId:int}/approve")]
-    public async Task<IActionResult> Approve(int returnId, [FromBody] ApprovalRequest request) =>
-        await Execute(() => _service.ApproveAsync(returnId, request));
+    [Authorize(Roles = "1")]
+    public async Task<IActionResult> Approve(int returnId, [FromBody] PurchaseReturnApprovalRequest request)
+    {
+        if (!TryGetCurrentUserId(out var approverId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        return await Execute(() => _service.ApproveAsync(returnId, request, approverId));
+    }
 
     [HttpPost("{returnId:int}/complete")]
-    public async Task<IActionResult> Complete(int returnId, [FromBody] CompletePurchaseReturnRequest request) =>
-        await Execute(() => _service.CompleteAsync(returnId, request));
+    [Authorize(Roles = "2")]
+    public async Task<IActionResult> Complete(int returnId, [FromBody] CompletePurchaseReturnRequest request)
+    {
+        if (!TryGetCurrentUserId(out var operatorId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        return await Execute(() => _service.CompleteAsync(returnId, request, operatorId));
+    }
 
     [HttpDelete("{returnId:int}")]
+    [Authorize(Roles = "2")]
     public async Task<IActionResult> Cancel(int returnId)
     {
         try
         {
-            await _service.CancelAsync(returnId);
+            if (!TryGetCurrentUserId(out var operatorId))
+                return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+            await _service.CancelAsync(returnId, operatorId);
             return Ok(ApiResponse<object?>.Ok(null, "采购退货单已作废"));
         }
         catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException or InvalidOperationException)
@@ -59,6 +83,9 @@ public class PurchaseReturnsController : ControllerBase
     [HttpGet("/purchases/{purchaseId:int}/returns")]
     public async Task<IActionResult> PurchaseReturns(int purchaseId, int page = 1, int size = 10) =>
         await Execute(() => _service.ListAsync(page, size, null, null, null, purchaseId, null, null));
+
+    private bool TryGetCurrentUserId(out int userId) =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId) && userId > 0;
 
     private async Task<IActionResult> Execute<T>(Func<Task<T>> action)
     {

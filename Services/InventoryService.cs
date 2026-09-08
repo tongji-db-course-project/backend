@@ -125,6 +125,7 @@ public class InventoryService : IInventoryService
                 unit = x.product.UNIT,
                 stockWarning = x.product.STOCK_WARNING,
                 warehouseId = resolvedWarehouseId,
+                warehouseName = x.inventory == null ? null : x.inventory.WAREHOUSE.WAREHOUSE_NAME,
                 currentStock = x.inventory == null ? 0 : x.inventory.CURRENT_STOCK,
                 lastUpdateTime = x.inventory == null ? null : x.inventory.LAST_UPDATE_TIME
             })
@@ -406,6 +407,7 @@ public class InventoryService : IInventoryService
             unit = inventory.PRODUCT.UNIT,
             stockWarning = inventory.PRODUCT.STOCK_WARNING,
             warehouseId = inventory.WAREHOUSE_ID,
+            warehouseName = inventory.WAREHOUSE.WAREHOUSE_NAME,
             currentStock = inventory.CURRENT_STOCK,
             lastUpdateTime = inventory.LAST_UPDATE_TIME
         });
