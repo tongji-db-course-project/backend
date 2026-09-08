@@ -60,6 +60,7 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ISettlementService, SettlementService>();
 builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddScoped<IPurchaseReturnService, PurchaseReturnService>();
+builder.Services.AddHostedService<backend.Services.DailySettlementHostedService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

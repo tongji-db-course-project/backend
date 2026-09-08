@@ -37,11 +37,13 @@ public class PurchaseOrderService : IPurchaseOrderService
             .AsNoTracking()
             .AsQueryable();
 
-        // 关键词：单据编码模糊匹配
+        // 关键词：单据编码或供应商名称模糊匹配（对应前端"搜索单号、关键词"）
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             var kw = keyword.Trim();
-            query = query.Where(o => o.ORDER_CODE.Contains(kw));
+            query = query.Where(o =>
+                o.ORDER_CODE.Contains(kw) ||
+                (o.SUPPLIER != null && o.SUPPLIER.SUPPLIER_NAME.Contains(kw)));
         }
 
         // 状态精确过滤
@@ -266,6 +268,22 @@ public class PurchaseOrderService : IPurchaseOrderService
         order.TOTAL_AMOUNT = details.Sum(d => d.purchasePrice * d.purchaseQuantity);
         order.UPDATE_TIME = DateTime.Now;
 
+        // 已驳回的单据修改保存后自动回到待审批，重新进入审批流
+        if (order.STATUS == StatusRejected)
+        {
+            order.STATUS = StatusPendingApproval;
+            _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
+            {
+                ORDER_TYPE = "采购单",
+                ORDER_ID = orderId,
+                OLD_STATUS = StatusRejected,
+                NEW_STATUS = StatusPendingApproval,
+                OPERATOR_ID = request.applicantId,
+                CHANGE_TIME = DateTime.Now,
+                REMARK = "修改后重新提交审批"
+            });
+        }
+
         // 替换明细：删旧插新
         _db.PURCHASE_ORDER_DETAILs.RemoveRange(order.PURCHASE_ORDER_DETAILs);
         foreach (var d in details)
@@ -307,8 +325,12 @@ public class PurchaseOrderService : IPurchaseOrderService
         order.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "采购单", ORDER_ID = orderId, OLD_STATUS = oldStatus,
-            NEW_STATUS = StatusVoided, CHANGE_TIME = now, REMARK = "作废采购单"
+            ORDER_TYPE = "采购单",
+            ORDER_ID = orderId,
+            OLD_STATUS = oldStatus,
+            NEW_STATUS = StatusVoided,
+            CHANGE_TIME = now,
+            REMARK = "作废采购单"
         });
         await _db.SaveChangesAsync();
     }
@@ -329,16 +351,23 @@ public class PurchaseOrderService : IPurchaseOrderService
             order.UPDATE_TIME = now;
             _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
             {
-                ORDER_TYPE = "采购单", ORDER_ID = orderId, OLD_STATUS = oldStatus,
-                NEW_STATUS = StatusPendingApproval, OPERATOR_ID = order.APPLICANT_ID,
-                CHANGE_TIME = now, REMARK = "提交采购申请"
+                ORDER_TYPE = "采购单",
+                ORDER_ID = orderId,
+                OLD_STATUS = oldStatus,
+                NEW_STATUS = StatusPendingApproval,
+                OPERATOR_ID = order.APPLICANT_ID,
+                CHANGE_TIME = now,
+                REMARK = "提交采购申请"
             });
             await _db.SaveChangesAsync();
         }
         return new OrderStatusResultDto
         {
-            orderId = order.ORDER_ID, orderCode = order.ORDER_CODE, status = StatusPendingApproval,
-            operatorId = order.APPLICANT_ID, changeTime = now
+            orderId = order.ORDER_ID,
+            orderCode = order.ORDER_CODE,
+            status = StatusPendingApproval,
+            operatorId = order.APPLICANT_ID,
+            changeTime = now
         };
     }
 
@@ -566,9 +595,14 @@ public class PurchaseOrderService : IPurchaseOrderService
             .OrderBy(x => x.CHANGE_TIME).ThenBy(x => x.LOG_ID)
             .Select(x => new OrderStatusLogDto
             {
-                logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID,
-                oldStatus = x.OLD_STATUS, newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID,
-                changeTime = x.CHANGE_TIME, remark = x.REMARK
+                logId = x.LOG_ID,
+                orderType = x.ORDER_TYPE,
+                orderId = x.ORDER_ID,
+                oldStatus = x.OLD_STATUS,
+                newStatus = x.NEW_STATUS,
+                operatorId = x.OPERATOR_ID,
+                changeTime = x.CHANGE_TIME,
+                remark = x.REMARK
             }).ToListAsync();
     }
 

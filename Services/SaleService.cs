@@ -23,7 +23,8 @@ public class SaleService : ISaleService
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             var value = keyword.Trim();
-            query = query.Where(x => x.SALE_NO.Contains(value) ||
+            var saleId = int.TryParse(value, out var parsedSaleId) ? parsedSaleId : (int?)null;
+            query = query.Where(x => (saleId.HasValue && x.SALE_ID == saleId.Value) || x.SALE_NO.Contains(value) ||
                 (x.MEMBER != null && (x.MEMBER.MEMBER_NAME.Contains(value) || x.MEMBER.PHONE.Contains(value))));
         }
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.STATUS == status.Trim());
@@ -39,7 +40,7 @@ public class SaleService : ISaleService
                 memberId = x.MEMBER_ID,
                 memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
                 userId = x.USER_ID,
-                cashierName = x.USER.REAL_NAME,
+                cashierName = x.USER != null ? x.USER.REAL_NAME : null,
                 saleDate = x.SALE_DATE,
                 totalAmount = x.TOTAL_AMOUNT ?? 0,
                 discountAmount = x.DISCOUNT_AMOUNT ?? 0,
@@ -60,7 +61,7 @@ public class SaleService : ISaleService
                 memberId = x.MEMBER_ID,
                 memberName = x.MEMBER == null ? null : x.MEMBER.MEMBER_NAME,
                 userId = x.USER_ID,
-                cashierName = x.USER.REAL_NAME,
+                cashierName = x.USER != null ? x.USER.REAL_NAME : null,
                 saleDate = x.SALE_DATE,
                 totalAmount = x.TOTAL_AMOUNT ?? 0,
                 discountAmount = x.DISCOUNT_AMOUNT ?? 0,
@@ -68,7 +69,7 @@ public class SaleService : ISaleService
                 payType = x.PAY_TYPE,
                 status = x.STATUS,
                 couponId = x.MEMBER_COUPONs.Select(c => (int?)c.COUPON_ID).FirstOrDefault(),
-                couponName = x.MEMBER_COUPONs.Select(c => c.TEMPLATE.COUPON_NAME).FirstOrDefault(),
+                couponName = x.MEMBER_COUPONs.Select(c => c.TEMPLATE != null ? c.TEMPLATE.COUPON_NAME : null).FirstOrDefault(),
                 promotionDiscount = x.PROMOTION_DISCOUNT ?? 0,
                 memberDiscount = x.MEMBER_DISCOUNT ?? 0,
                 couponDeduct = x.COUPON_DEDUCT ?? 0,
@@ -78,7 +79,7 @@ public class SaleService : ISaleService
                 items = x.SALE_ORDER_DETAILs.Select(d => new SaleDetailItemDto
                 {
                     productId = d.PRODUCT_ID,
-                    productName = d.PRODUCT.PRODUCT_NAME,
+                    productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : string.Empty,
                     quantity = d.SALE_QUANTITY ?? 0,
                     salePrice = d.SALE_PRICE ?? 0,
                     subtotal = (d.SALE_PRICE ?? 0) * (d.SALE_QUANTITY ?? 0)
@@ -267,8 +268,13 @@ public class SaleService : ISaleService
         await _db.SaveChangesAsync();
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "销售单", ORDER_ID = order.SALE_ID, OLD_STATUS = null, NEW_STATUS = "已完成",
-            OPERATOR_ID = userId, CHANGE_TIME = now, REMARK = "POS 收银结算"
+            ORDER_TYPE = "销售单",
+            ORDER_ID = order.SALE_ID,
+            OLD_STATUS = null,
+            NEW_STATUS = "已完成",
+            OPERATOR_ID = userId,
+            CHANGE_TIME = now,
+            REMARK = "POS 收银结算"
         });
         if (member is not null)
         {
@@ -304,9 +310,14 @@ public class SaleService : ISaleService
             inventory.CURRENT_STOCK += quantity; inventory.LAST_UPDATE_TIME = now;
             _db.INVENTORY_RECORDs.Add(new INVENTORY_RECORD
             {
-                PRODUCT_ID = detail.PRODUCT_ID, RECORD_TYPE = "销售作废", SOURCE_NO = sale.SALE_NO,
-                CHANGE_QTY = quantity, REMAIN_QTY = inventory.CURRENT_STOCK, OPERATOR_ID = operatorId,
-                RECORD_TIME = now, REMARK = "销售单作废恢复库存"
+                PRODUCT_ID = detail.PRODUCT_ID,
+                RECORD_TYPE = "销售作废",
+                SOURCE_NO = sale.SALE_NO,
+                CHANGE_QTY = quantity,
+                REMAIN_QTY = inventory.CURRENT_STOCK,
+                OPERATOR_ID = operatorId,
+                RECORD_TIME = now,
+                REMARK = "销售单作废恢复库存"
             });
         }
         if (sale.MEMBER_ID.HasValue)
@@ -319,8 +330,13 @@ public class SaleService : ISaleService
                 member.POINTS = (member.POINTS ?? 0) - originalPoints;
                 _db.POINT_RECORDs.Add(new POINT_RECORD
                 {
-                    MEMBER_ID = member.MEMBER_ID, SALE_ID = saleId, CHANGE_TYPE = originalPoints > 0 ? "扣减" : "增加",
-                    CHANGE_POINTS = -originalPoints, REMAIN_POINTS = member.POINTS.Value, RECORD_TIME = now, REMARK = "销售单作废积分冲销"
+                    MEMBER_ID = member.MEMBER_ID,
+                    SALE_ID = saleId,
+                    CHANGE_TYPE = originalPoints > 0 ? "扣减" : "增加",
+                    CHANGE_POINTS = -originalPoints,
+                    REMAIN_POINTS = member.POINTS.Value,
+                    RECORD_TIME = now,
+                    REMARK = "销售单作废积分冲销"
                 });
             }
         }
@@ -334,8 +350,13 @@ public class SaleService : ISaleService
         sale.STATUS = "已取消"; sale.UPDATE_TIME = now;
         _db.ORDER_STATUS_LOGs.Add(new ORDER_STATUS_LOG
         {
-            ORDER_TYPE = "销售单", ORDER_ID = saleId, OLD_STATUS = "已完成", NEW_STATUS = "已取消",
-            OPERATOR_ID = operatorId, CHANGE_TIME = now, REMARK = "销售单作废"
+            ORDER_TYPE = "销售单",
+            ORDER_ID = saleId,
+            OLD_STATUS = "已完成",
+            NEW_STATUS = "已取消",
+            OPERATOR_ID = operatorId,
+            CHANGE_TIME = now,
+            REMARK = "销售单作废"
         });
         await _db.SaveChangesAsync();
         if (sale.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, sale.MEMBER_ID.Value, now);
@@ -349,8 +370,14 @@ public class SaleService : ISaleService
         return await _db.ORDER_STATUS_LOGs.AsNoTracking().Where(x => x.ORDER_TYPE == "销售单" && x.ORDER_ID == saleId)
             .OrderBy(x => x.CHANGE_TIME).ThenBy(x => x.LOG_ID).Select(x => new OrderStatusLogDto
             {
-                logId = x.LOG_ID, orderType = x.ORDER_TYPE, orderId = x.ORDER_ID, oldStatus = x.OLD_STATUS,
-                newStatus = x.NEW_STATUS, operatorId = x.OPERATOR_ID, changeTime = x.CHANGE_TIME, remark = x.REMARK
+                logId = x.LOG_ID,
+                orderType = x.ORDER_TYPE,
+                orderId = x.ORDER_ID,
+                oldStatus = x.OLD_STATUS,
+                newStatus = x.NEW_STATUS,
+                operatorId = x.OPERATOR_ID,
+                changeTime = x.CHANGE_TIME,
+                remark = x.REMARK
             }).ToListAsync();
     }
 

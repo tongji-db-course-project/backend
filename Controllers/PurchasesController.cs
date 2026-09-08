@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using backend.Dtos;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -5,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[ApiController, Route("purchases"), Authorize]
+[ApiController, Route("purchases"), Authorize(Roles = "1,2")]
 public class PurchasesController : ControllerBase
 {
     private readonly IPurchaseOrderService _service;
@@ -16,17 +17,30 @@ public class PurchasesController : ControllerBase
         Ok(ApiResponse<PageResult<PurchaseOrderDto>>.Ok(await _service.ListOrdersAsync(page, size, keyword, status, supplierId)));
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreatePurchaseOrderRequest request) =>
-        await Execute(() => _service.CreateOrderAsync(request));
+    [Authorize(Roles = "2")]
+    public async Task<IActionResult> Create([FromBody] CreatePurchaseOrderRequest request)
+    {
+        if (!TryGetCurrentUserId(out var applicantId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.applicantId = applicantId;
+        return await Execute(() => _service.CreateOrderAsync(request));
+    }
 
     [HttpGet("{purchaseId:int}")]
     public async Task<IActionResult> Get(int purchaseId) => await Execute(() => _service.GetOrderAsync(purchaseId));
 
     [HttpPut("{purchaseId:int}")]
-    public async Task<IActionResult> Update(int purchaseId, [FromBody] CreatePurchaseOrderRequest request) =>
-        await Execute(() => _service.UpdateOrderAsync(purchaseId, request));
+    [Authorize(Roles = "2")]
+    public async Task<IActionResult> Update(int purchaseId, [FromBody] CreatePurchaseOrderRequest request)
+    {
+        if (!TryGetCurrentUserId(out var applicantId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.applicantId = applicantId;
+        return await Execute(() => _service.UpdateOrderAsync(purchaseId, request));
+    }
 
     [HttpDelete("{purchaseId:int}")]
+    [Authorize(Roles = "2")]
     public async Task<IActionResult> Delete(int purchaseId)
     {
         try { await _service.CancelOrderAsync(purchaseId); return Ok(ApiResponse<object?>.Ok(null, "删除成功")); }
@@ -34,22 +48,44 @@ public class PurchasesController : ControllerBase
     }
 
     [HttpPost("{purchaseId:int}/submit")]
+    [Authorize(Roles = "2")]
     public async Task<IActionResult> Submit(int purchaseId) => await Execute(() => _service.SubmitOrderAsync(purchaseId));
 
     [HttpPost("{purchaseId:int}/approve")]
-    public async Task<IActionResult> Approve(int purchaseId, [FromBody] ApprovalRequest request) =>
-        await Execute(() => _service.ApproveOrderAsync(purchaseId, request));
+    [Authorize(Roles = "1")]
+    public async Task<IActionResult> Approve(int purchaseId, [FromBody] ApprovalRequest request)
+    {
+        if (!TryGetCurrentUserId(out var approverId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.approverId = approverId;
+        return await Execute(() => _service.ApproveOrderAsync(purchaseId, request));
+    }
 
     [HttpPost("{purchaseId:int}/reject")]
-    public async Task<IActionResult> Reject(int purchaseId, [FromBody] ApprovalRequest request) =>
-        await Execute(() => _service.RejectOrderAsync(purchaseId, request));
+    [Authorize(Roles = "1")]
+    public async Task<IActionResult> Reject(int purchaseId, [FromBody] ApprovalRequest request)
+    {
+        if (!TryGetCurrentUserId(out var approverId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.approverId = approverId;
+        return await Execute(() => _service.RejectOrderAsync(purchaseId, request));
+    }
 
     [HttpPost("{purchaseId:int}/stock-in")]
-    public async Task<IActionResult> StockIn(int purchaseId, [FromBody] PurchaseStockInRequest request) =>
-        await Execute(() => _service.StockInAsync(purchaseId, request));
+    [Authorize(Roles = "2")]
+    public async Task<IActionResult> StockIn(int purchaseId, [FromBody] PurchaseStockInRequest request)
+    {
+        if (!TryGetCurrentUserId(out var operatorId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.operatorId = operatorId;
+        return await Execute(() => _service.StockInAsync(purchaseId, request));
+    }
 
     [HttpGet("{purchaseId:int}/timeline")]
     public async Task<IActionResult> Timeline(int purchaseId) => await Execute(() => _service.GetTimelineAsync(purchaseId));
+
+    private bool TryGetCurrentUserId(out int userId) =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId) && userId > 0;
 
     private async Task<IActionResult> Execute<T>(Func<Task<T>> action)
     {

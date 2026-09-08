@@ -21,6 +21,8 @@ public class InventoryDto
 
     public int warehouseId { get; set; }
 
+    public string? warehouseName { get; set; }
+
     public int currentStock { get; set; }
 
     public DateTime? lastUpdateTime { get; set; }
