@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using backend.Data;
 using backend.Dtos;
 using backend.Models;
@@ -34,7 +35,7 @@ public class InventoryService : IInventoryService
             .OrderBy(x => x.PRODUCT_ID)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(x => MapInventory(x))
+            .Select(MapInventoryExpr)
             .ToListAsync();
 
         return new PageResult<InventoryDto>
@@ -55,7 +56,7 @@ public class InventoryService : IInventoryService
         var result = await _db.INVENTORies
             .AsNoTracking()
             .Where(x => x.INVENTORY_ID == inventoryId && x.WAREHOUSE_ID == warehouseId)
-            .Select(x => MapInventory(x))
+            .Select(MapInventoryExpr)
             .SingleOrDefaultAsync();
 
         return result ?? throw new KeyNotFoundException("库存记录不存在");
@@ -70,7 +71,7 @@ public class InventoryService : IInventoryService
         var result = await _db.INVENTORies
             .AsNoTracking()
             .Where(x => x.PRODUCT_ID == productId && x.WAREHOUSE_ID == warehouseId)
-            .Select(x => MapInventory(x))
+            .Select(MapInventoryExpr)
             .SingleOrDefaultAsync();
 
         if (result is not null)
@@ -100,7 +101,7 @@ public class InventoryService : IInventoryService
             .ThenBy(x => x.PRODUCT_ID)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(x => MapInventory(x))
+            .Select(MapInventoryExpr)
             .ToListAsync();
 
         return new PageResult<InventoryDto>
@@ -253,7 +254,7 @@ public class InventoryService : IInventoryService
             throw new BusinessException(409, "库存调整失败，请刷新后重试");
         }
 
-        return MapInventory(inventory);
+        return await GetInventoryByProductAsync(request.productId);
     }
 
     public async Task<IReadOnlyList<SupplierPurchaseSuggestionDto>> GetPurchaseSuggestionsAsync()
@@ -350,14 +351,25 @@ public class InventoryService : IInventoryService
         return warehouseId.Value;
     }
 
-    private static InventoryDto MapInventory(INVENTORY inventory) => new()
-    {
-        inventoryId = inventory.INVENTORY_ID,
-        productId = inventory.PRODUCT_ID,
-        warehouseId = inventory.WAREHOUSE_ID,
-        currentStock = inventory.CURRENT_STOCK,
-        lastUpdateTime = inventory.LAST_UPDATE_TIME
-    };
+    /// <summary>
+    /// 库存映射表达式：JOIN 商品/仓库表展平名称、条码、预警值等字段，
+    /// 供 SELECT 在数据库端执行（前端库存页依赖 stockWarning 判断预警状态）
+    /// </summary>
+    private static readonly Expression<Func<INVENTORY, InventoryDto>> MapInventoryExpr =
+        x => new InventoryDto
+        {
+            inventoryId = x.INVENTORY_ID,
+            productId = x.PRODUCT_ID,
+            productName = x.PRODUCT.PRODUCT_NAME,
+            barcode = x.PRODUCT.BARCODE,
+            specification = x.PRODUCT.SPECIFICATION,
+            unit = x.PRODUCT.UNIT,
+            stockWarning = x.PRODUCT.STOCK_WARNING,
+            warehouseId = x.WAREHOUSE_ID,
+            warehouseName = x.WAREHOUSE.WAREHOUSE_NAME,
+            currentStock = x.CURRENT_STOCK,
+            lastUpdateTime = x.LAST_UPDATE_TIME
+        };
 
     private static void NormalizePage(ref int page, ref int size)
     {

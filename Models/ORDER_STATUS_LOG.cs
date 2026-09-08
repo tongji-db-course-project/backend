@@ -11,7 +11,7 @@ public partial class ORDER_STATUS_LOG
     public int LOG_ID { get; set; }
 
     /// <summary>
-    /// 订单类型：采购单/销售单/退货单
+    /// 订单类型：采购单/采购退货单/销售单/退货单
     /// </summary>
     public string ORDER_TYPE { get; set; } = null!;
 
