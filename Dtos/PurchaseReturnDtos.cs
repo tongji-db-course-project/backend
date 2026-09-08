@@ -35,14 +35,17 @@ public class SavePurchaseReturnRequest
     [Range(1, int.MaxValue)]
     public int purchaseId { get; set; }
 
-    [Range(1, int.MaxValue)]
-    public int operatorId { get; set; }
-
     public DateTime? returnDate { get; set; }
 
     [Required, MinLength(1)]
     public List<SavePurchaseReturnDetailRequest> details { get; set; } = new();
 
+    [StringLength(200)]
+    public string? remark { get; set; }
+}
+
+public class PurchaseReturnApprovalRequest
+{
     [StringLength(200)]
     public string? remark { get; set; }
 }
@@ -58,9 +61,6 @@ public class SavePurchaseReturnDetailRequest
 
 public class CompletePurchaseReturnRequest
 {
-    [Range(1, int.MaxValue)]
-    public int operatorId { get; set; }
-
     [Range(1, int.MaxValue)]
     public int warehouseId { get; set; } = 1;
 

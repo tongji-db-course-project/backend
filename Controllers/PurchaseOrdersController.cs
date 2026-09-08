@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using backend.Dtos;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +11,7 @@ namespace backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("purchase-orders")]
-[Authorize]
+[Authorize(Roles = "1,2")]
 public class PurchaseOrdersController : ControllerBase
 {
     private readonly IPurchaseOrderService _purchaseOrderService;
@@ -40,9 +41,13 @@ public class PurchaseOrdersController : ControllerBase
     /// 创建采购订单（初始为待审批状态）
     /// </summary>
     [HttpPost(Name = "createPurchaseOrder")]
+    [Authorize(Roles = "2")]
     [ProducesResponseType(typeof(ApiResponse<PurchaseOrderDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateOrder([FromBody] CreatePurchaseOrderRequest request)
     {
+        if (!TryGetCurrentUserId(out var applicantId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.applicantId = applicantId;
         try
         {
             var result = await _purchaseOrderService.CreateOrderAsync(request);
@@ -76,11 +81,15 @@ public class PurchaseOrdersController : ControllerBase
     /// 修改采购订单（仅待审批状态可修改）
     /// </summary>
     [HttpPut("{orderId:int}", Name = "updatePurchaseOrder")]
+    [Authorize(Roles = "2")]
     [ProducesResponseType(typeof(ApiResponse<PurchaseOrderDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateOrder(
         [FromRoute] int orderId,
         [FromBody] CreatePurchaseOrderRequest request)
     {
+        if (!TryGetCurrentUserId(out var applicantId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.applicantId = applicantId;
         try
         {
             var result = await _purchaseOrderService.UpdateOrderAsync(orderId, request);
@@ -96,6 +105,7 @@ public class PurchaseOrdersController : ControllerBase
     /// 作废采购订单（置为已作废，不物理删除）
     /// </summary>
     [HttpDelete("{orderId:int}", Name = "cancelPurchaseOrder")]
+    [Authorize(Roles = "2")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CancelOrder([FromRoute] int orderId)
     {
@@ -114,11 +124,15 @@ public class PurchaseOrdersController : ControllerBase
     /// 审批通过采购订单（待审批 → 已审批）
     /// </summary>
     [HttpPost("{orderId:int}/approve", Name = "approvePurchaseOrder")]
+    [Authorize(Roles = "1")]
     [ProducesResponseType(typeof(ApiResponse<OrderStatusResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ApproveOrder(
         [FromRoute] int orderId,
         [FromBody] ApprovalRequest request)
     {
+        if (!TryGetCurrentUserId(out var approverId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.approverId = approverId;
         try
         {
             var result = await _purchaseOrderService.ApproveOrderAsync(orderId, request);
@@ -131,6 +145,7 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     [HttpPost("{orderId:int}/submit", Name = "submitPurchaseOrder")]
+    [Authorize(Roles = "2")]
     public async Task<IActionResult> SubmitOrder([FromRoute] int orderId)
     {
         try { return Ok(ApiResponse<OrderStatusResultDto>.Ok(await _purchaseOrderService.SubmitOrderAsync(orderId))); }
@@ -141,11 +156,15 @@ public class PurchaseOrdersController : ControllerBase
     /// 驳回采购订单（待审批 → 已驳回，可修改后再次提交）
     /// </summary>
     [HttpPost("{orderId:int}/reject", Name = "rejectPurchaseOrder")]
+    [Authorize(Roles = "1")]
     [ProducesResponseType(typeof(ApiResponse<OrderStatusResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> RejectOrder(
         [FromRoute] int orderId,
         [FromBody] ApprovalRequest request)
     {
+        if (!TryGetCurrentUserId(out var approverId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.approverId = approverId;
         try
         {
             var result = await _purchaseOrderService.RejectOrderAsync(orderId, request);
@@ -161,11 +180,15 @@ public class PurchaseOrdersController : ControllerBase
     /// 采购入库（加库存 + 记流水 + 生成结算，事务保证原子性）
     /// </summary>
     [HttpPost("{orderId:int}/stock-in", Name = "stockInPurchaseOrder")]
+    [Authorize(Roles = "2")]
     [ProducesResponseType(typeof(ApiResponse<PurchaseStockInResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> StockIn(
         [FromRoute] int orderId,
         [FromBody] PurchaseStockInRequest request)
     {
+        if (!TryGetCurrentUserId(out var operatorId))
+            return Unauthorized(ApiResponse<object>.Fail(401, "登录身份无效"));
+        request.operatorId = operatorId;
         try
         {
             var result = await _purchaseOrderService.StockInAsync(orderId, request);
@@ -183,6 +206,9 @@ public class PurchaseOrdersController : ControllerBase
         try { return Ok(ApiResponse<IReadOnlyList<OrderStatusLogDto>>.Ok(await _purchaseOrderService.GetTimelineAsync(orderId))); }
         catch (KeyNotFoundException ex) { return Error(ex); }
     }
+
+    private bool TryGetCurrentUserId(out int userId) =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId) && userId > 0;
 
     private ObjectResult Error(Exception ex)
     {

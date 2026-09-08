@@ -49,18 +49,18 @@ public class PurchaseReturnService : IPurchaseReturnService
         await Project(_db.PURCHASE_RETURN_ORDERs.AsNoTracking().Where(x => x.RETURN_ID == returnId), true)
             .FirstOrDefaultAsync() ?? throw new KeyNotFoundException("采购退货单不存在");
 
-    public async Task<PurchaseReturnDto> CreateAsync(SavePurchaseReturnRequest request)
+    public async Task<PurchaseReturnDto> CreateAsync(SavePurchaseReturnRequest request, int operatorId)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM PURCHASE_ORDER WHERE ORDER_ID = {0} FOR UPDATE", request.purchaseId);
-        var validated = await ValidateRequestAsync(request, null);
+        var validated = await ValidateRequestAsync(request, null, operatorId);
         var now = DateTime.Now;
         var order = new PURCHASE_RETURN_ORDER
         {
             RETURN_NO = $"PR{now:yyyyMMddHHmmssfff}{Guid.NewGuid():N}"[..30],
             PURCHASE_ID = validated.purchase.ORDER_ID,
             SUPPLIER_ID = validated.purchase.SUPPLIER_ID!.Value,
-            OPERATOR_ID = request.operatorId,
+            OPERATOR_ID = operatorId,
             RETURN_DATE = request.returnDate ?? now,
             TOTAL_AMOUNT = validated.details.Sum(x => x.subtotal),
             STATUS = Pending,
@@ -80,13 +80,13 @@ public class PurchaseReturnService : IPurchaseReturnService
         }
         _db.PURCHASE_RETURN_ORDERs.Add(order);
         await _db.SaveChangesAsync();
-        AddLog(order.RETURN_ID, null, Pending, request.operatorId, request.remark);
+        AddLog(order.RETURN_ID, null, Pending, operatorId, request.remark);
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await GetAsync(order.RETURN_ID);
     }
 
-    public async Task<PurchaseReturnDto> UpdateAsync(int returnId, SavePurchaseReturnRequest request)
+    public async Task<PurchaseReturnDto> UpdateAsync(int returnId, SavePurchaseReturnRequest request, int operatorId)
     {
         var existing = await _db.PURCHASE_RETURN_ORDERs.AsNoTracking()
             .Where(x => x.RETURN_ID == returnId).Select(x => new { x.PURCHASE_ID }).FirstOrDefaultAsync()
@@ -99,9 +99,9 @@ public class PurchaseReturnService : IPurchaseReturnService
         var order = await _db.PURCHASE_RETURN_ORDERs.Include(x => x.PURCHASE_RETURN_ORDER_DETAILs)
             .FirstAsync(x => x.RETURN_ID == returnId);
         if (order.STATUS != Pending) throw new InvalidOperationException("仅待审核采购退货单可以修改");
-        var validated = await ValidateRequestAsync(request, returnId);
+        var validated = await ValidateRequestAsync(request, returnId, operatorId);
 
-        order.OPERATOR_ID = request.operatorId;
+        order.OPERATOR_ID = operatorId;
         order.RETURN_DATE = request.returnDate ?? order.RETURN_DATE;
         order.TOTAL_AMOUNT = validated.details.Sum(x => x.subtotal);
         order.UPDATE_TIME = DateTime.Now;
@@ -122,9 +122,9 @@ public class PurchaseReturnService : IPurchaseReturnService
         return await GetAsync(returnId);
     }
 
-    public async Task<PurchaseReturnDto> ApproveAsync(int returnId, ApprovalRequest request)
+    public async Task<PurchaseReturnDto> ApproveAsync(int returnId, PurchaseReturnApprovalRequest request, int approverId)
     {
-        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.approverId && x.STATUS == "启用"))
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == approverId && x.STATUS == "启用"))
             throw new KeyNotFoundException("审核人不存在或已禁用");
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM PURCHASE_RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
@@ -133,15 +133,15 @@ public class PurchaseReturnService : IPurchaseReturnService
         if (order.STATUS != Pending) throw new InvalidOperationException("仅待审核采购退货单可以审核");
         order.STATUS = Approved;
         order.UPDATE_TIME = DateTime.Now;
-        AddLog(returnId, Pending, Approved, request.approverId, request.remark);
+        AddLog(returnId, Pending, Approved, approverId, request.remark);
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await GetAsync(returnId);
     }
 
-    public async Task<PurchaseReturnDto> CompleteAsync(int returnId, CompletePurchaseReturnRequest request)
+    public async Task<PurchaseReturnDto> CompleteAsync(int returnId, CompletePurchaseReturnRequest request, int operatorId)
     {
-        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.operatorId && x.STATUS == "启用"))
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId && x.STATUS == "启用"))
             throw new KeyNotFoundException("经办人不存在或已禁用");
         if (!await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == request.warehouseId))
             throw new KeyNotFoundException("仓库不存在");
@@ -180,7 +180,7 @@ public class PurchaseReturnService : IPurchaseReturnService
                 SOURCE_NO = order.RETURN_NO,
                 CHANGE_QTY = -detail.QUANTITY,
                 REMAIN_QTY = inventory.CURRENT_STOCK,
-                OPERATOR_ID = request.operatorId,
+                OPERATOR_ID = operatorId,
                 RECORD_TIME = now,
                 REMARK = request.remark?.Trim() ?? "采购退货出库"
             });
@@ -204,26 +204,25 @@ public class PurchaseReturnService : IPurchaseReturnService
         }
 
         order.STATUS = Completed;
-        order.OPERATOR_ID = request.operatorId;
+        order.OPERATOR_ID = operatorId;
         order.UPDATE_TIME = now;
-        AddLog(returnId, Approved, Completed, request.operatorId, request.remark ?? "完成采购退货出库并冲减应付");
+        AddLog(returnId, Approved, Completed, operatorId, request.remark ?? "完成采购退货出库并冲减应付");
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await GetAsync(returnId);
     }
 
-    public async Task CancelAsync(int returnId)
+    public async Task CancelAsync(int returnId, int operatorId)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM PURCHASE_RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
         var order = await _db.PURCHASE_RETURN_ORDERs.FirstOrDefaultAsync(x => x.RETURN_ID == returnId)
             ?? throw new KeyNotFoundException("采购退货单不存在");
-        if (order.STATUS == Completed) throw new InvalidOperationException("已完成采购退货单不能作废");
-        if (order.STATUS == Voided) throw new InvalidOperationException("采购退货单已作废");
+        if (order.STATUS != Pending) throw new InvalidOperationException("仅待审核采购退货单可以作废");
         var oldStatus = order.STATUS;
         order.STATUS = Voided;
         order.UPDATE_TIME = DateTime.Now;
-        AddLog(returnId, oldStatus, Voided, order.OPERATOR_ID, "作废采购退货单");
+        AddLog(returnId, oldStatus, Voided, operatorId, "作废采购退货单");
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
     }
@@ -249,10 +248,10 @@ public class PurchaseReturnService : IPurchaseReturnService
     }
 
     private async Task<(PURCHASE_ORDER purchase, List<ValidatedDetail> details)> ValidateRequestAsync(
-        SavePurchaseReturnRequest request, int? excludedReturnId)
+        SavePurchaseReturnRequest request, int? excludedReturnId, int operatorId)
     {
         if (request.details.Count == 0) throw new ArgumentException("采购退货明细不能为空");
-        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.operatorId && x.STATUS == "启用"))
+        if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId && x.STATUS == "启用"))
             throw new KeyNotFoundException("经办人不存在或已禁用");
         var purchase = await _db.PURCHASE_ORDERs.AsNoTracking().Include(x => x.PURCHASE_ORDER_DETAILs)
             .FirstOrDefaultAsync(x => x.ORDER_ID == request.purchaseId) ?? throw new KeyNotFoundException("原采购单不存在");

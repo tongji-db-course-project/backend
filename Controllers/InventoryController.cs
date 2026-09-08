@@ -64,7 +64,7 @@ public class InventoryController : ControllerBase
                 await _inventoryService.GetInventoryByProductAsync(productId)));
     }
 
-    [Authorize(Roles = "1")]
+    [Authorize(Roles = "2")]
     [HttpPut("{productId:int}", Name = "adjustInventoryByProduct")]
     public async Task<IActionResult> AdjustInventoryByProduct(int productId, [FromBody] InventoryAdjustByProductRequest request)
     {
@@ -103,7 +103,7 @@ public class InventoryController : ControllerBase
             await _inventoryService.GetPurchaseSuggestionsAsync()));
     }
 
-    [Authorize(Roles = "1")]
+    [Authorize(Roles = "2")]
     [HttpPut("adjust", Name = "adjustInventory")]
     public async Task<IActionResult> AdjustInventory([FromBody] InventoryAdjustDto request)
     {
