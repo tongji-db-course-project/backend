@@ -447,71 +447,150 @@ public class StatisticsService : IStatisticsService
         var today = DateTime.Now.Date;
         if (day >= today)
             throw new ArgumentException("只能生成已经闭店的历史营业日日结");
-        var existing = await _db.DAILY_SETTLEMENTs.FirstOrDefaultAsync(x => x.SETTLEMENT_DATE == day);
-        if (existing is not null) return ToDailySettlementDto(existing);
         var end = day.AddDays(1);
+
+        var existing = await _db.DAILY_SETTLEMENTs.AsNoTracking()
+            .Where(x => x.SETTLEMENT_DATE == day)
+            .Select(x => new DAILY_SETTLEMENT
+            {
+                SETTLEMENT_ID = x.SETTLEMENT_ID,
+                SETTLEMENT_DATE = x.SETTLEMENT_DATE,
+                TOTAL_SALES = x.TOTAL_SALES,
+                CASH_AMOUNT = x.CASH_AMOUNT,
+                WECHAT_AMOUNT = x.WECHAT_AMOUNT,
+                ALIPAY_AMOUNT = x.ALIPAY_AMOUNT,
+                PROMOTION_DISCOUNT = x.PROMOTION_DISCOUNT,
+                MEMBER_DISCOUNT = x.MEMBER_DISCOUNT,
+                COUPON_DEDUCT = x.COUPON_DEDUCT,
+                POINT_DEDUCT = x.POINT_DEDUCT,
+                POINT_CONSUMED = x.POINT_CONSUMED,
+                ORDER_COUNT = x.ORDER_COUNT,
+                STATUS = x.STATUS,
+                CREATE_TIME = x.CREATE_TIME
+            })
+            .FirstOrDefaultAsync();
+        if (existing is not null)
+        {
+            var existingRefund = await _db.RETURN_ORDERs.AsNoTracking()
+                .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
+                .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
+            return ToDailySettlementDto(existing, existingRefund);
+        }
         var sales = await _db.SALE_ORDERs.AsNoTracking()
-            .Where(x => x.STATUS == "已完成" && x.SALE_DATE >= day && x.SALE_DATE < end).ToListAsync();
+            .Where(x => x.STATUS == "已完成" && x.SALE_DATE >= day && x.SALE_DATE < end)
+            .Select(s => new
+            {
+                s.SALE_ID,
+                s.PAID_AMOUNT,
+                s.TOTAL_AMOUNT,
+                s.DISCOUNT_AMOUNT,
+                s.CREATE_TIME,
+                s.UPDATE_TIME,
+                s.MEMBER_ID,
+                s.PAY_TYPE
+            })
+            .ToListAsync();
+
         var saleIds = sales.Select(x => x.SALE_ID).ToList();
-        var pointConsumed = saleIds.Count == 0 ? 0 : -(await _db.POINT_RECORDs.AsNoTracking()
-            .Where(x => saleIds.Contains(x.SALE_ID ?? 0) && x.CHANGE_TYPE == "抵现").SumAsync(x => (int?)x.CHANGE_POINTS) ?? 0);
-        var pointDeduct = sales.Sum(x => x.POINT_DEDUCT ?? 0);
-        var couponDeduct = sales.Sum(x => x.COUPON_DEDUCT ?? 0);
-        var memberDiscount = sales.Sum(x => x.MEMBER_DISCOUNT ?? 0);
-        var promotionDiscount = sales.Sum(x => x.PROMOTION_DISCOUNT ?? 0);
-        // 退款以实际确认完成时间归属营业日，跨日退款不回改原销售日。
+
+        var pointConsumed = saleIds.Count == 0 ? 0 : (await _db.POINT_RECORDs.AsNoTracking()
+            .Where(x => x.SALE_ID != null && saleIds.Contains(x.SALE_ID.Value) && x.CHANGE_TYPE == "抵现")
+            .SumAsync(x => (int?)x.CHANGE_POINTS) ?? 0);
+
+        var couponDeduct = 0m;
+        if (saleIds.Count > 0)
+        {
+            couponDeduct = await (from mc in _db.MEMBER_COUPONs.AsNoTracking()
+                                  join t in _db.COUPON_TEMPLATEs.AsNoTracking() on mc.TEMPLATE_ID equals t.TEMPLATE_ID
+                                  where mc.SALE_ID != null && saleIds.Contains(mc.SALE_ID.Value)
+                                        && mc.USE_TIME >= day && mc.USE_TIME < end
+                                        && (mc.STATUS == "已使用" || mc.STATUS == "已使用")
+                                  select (decimal?)t.FACE_VALUE).SumAsync() ?? 0;
+        }
+
+        var pointDeduct = 0m; 
+        var memberDiscount = 0m; 
+        var promotionDiscount = 0m; 
         var refundAmount = await _db.RETURN_ORDERs.AsNoTracking()
             .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
             .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
         var totalSales = sales.Sum(x => x.PAID_AMOUNT ?? 0);
         var settlement = new DAILY_SETTLEMENT
         {
-            SETTLEMENT_DATE = day, 
+            SETTLEMENT_DATE = day,
             TOTAL_SALES = totalSales,
-            REFUND_AMOUNT = refundAmount, 
-            NET_SALES = totalSales - refundAmount,
-            // 日结不区分支付方式；旧字段保留为 0，仅用于兼容已有数据库结构和客户端。
             CASH_AMOUNT = 0, 
             WECHAT_AMOUNT = 0, 
             ALIPAY_AMOUNT = 0,
-            PROMOTION_DISCOUNT = promotionDiscount, 
-            MEMBER_DISCOUNT = memberDiscount, 
+            PROMOTION_DISCOUNT = promotionDiscount,
+            MEMBER_DISCOUNT = memberDiscount,
             COUPON_DEDUCT = couponDeduct,
-            POINT_DEDUCT = pointDeduct, 
+            POINT_DEDUCT = pointDeduct,
             POINT_CONSUMED = pointConsumed,
-            ORDER_COUNT = sales.Count, 
-            STATUS = "已生成", 
+            ORDER_COUNT = sales.Count,
+            STATUS = "已生成",
             CREATE_TIME = DateTime.Now
         };
         _db.DAILY_SETTLEMENTs.Add(settlement);
-        await _db.SaveChangesAsync();
-        return ToDailySettlementDto(settlement);
+        try
+        {
+            await _db.SaveChangesAsync();
+            return ToDailySettlementDto(settlement, refundAmount);
+        }
+        catch (DbUpdateException)
+        {
+            var existingAfterConflict = await _db.DAILY_SETTLEMENTs.AsNoTracking()
+                .Where(x => x.SETTLEMENT_DATE == day)
+                .Select(x => new DAILY_SETTLEMENT
+                {
+                    SETTLEMENT_ID = x.SETTLEMENT_ID,
+                    SETTLEMENT_DATE = x.SETTLEMENT_DATE,
+                    TOTAL_SALES = x.TOTAL_SALES,
+                    CASH_AMOUNT = x.CASH_AMOUNT,
+                    WECHAT_AMOUNT = x.WECHAT_AMOUNT,
+                    ALIPAY_AMOUNT = x.ALIPAY_AMOUNT,
+                    PROMOTION_DISCOUNT = x.PROMOTION_DISCOUNT,
+                    MEMBER_DISCOUNT = x.MEMBER_DISCOUNT,
+                    COUPON_DEDUCT = x.COUPON_DEDUCT,
+                    POINT_DEDUCT = x.POINT_DEDUCT,
+                    POINT_CONSUMED = x.POINT_CONSUMED,
+                    ORDER_COUNT = x.ORDER_COUNT,
+                    STATUS = x.STATUS,
+                    CREATE_TIME = x.CREATE_TIME
+                })
+                .FirstOrDefaultAsync();
+            if (existingAfterConflict is not null)
+                return ToDailySettlementDto(existingAfterConflict, refundAmount);
+            throw;
+        }
     }
 
     public async Task<DailySettlementDto> GetDailySettlementAsync(DateTime date)
     {
         var record = await _db.DAILY_SETTLEMENTs.AsNoTracking().FirstOrDefaultAsync(x => x.SETTLEMENT_DATE == date.Date)
             ?? throw new KeyNotFoundException("当日尚未生成营业结转");
-        return ToDailySettlementDto(record);
+        var day = date.Date;
+        var end = day.AddDays(1);
+        var refundAmount = await _db.RETURN_ORDERs.AsNoTracking()
+            .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
+            .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
+        return ToDailySettlementDto(record, refundAmount);
     }
 
-    private static DailySettlementDto ToDailySettlementDto(DAILY_SETTLEMENT x) => new()
+    private static DailySettlementDto ToDailySettlementDto(DAILY_SETTLEMENT x, decimal refundAmount) => new()
     {
-        settlementId = x.SETTLEMENT_ID, 
-        settlementDate = x.SETTLEMENT_DATE, 
+        settlementId = x.SETTLEMENT_ID,
+        settlementDate = x.SETTLEMENT_DATE,
         totalSales = x.TOTAL_SALES ?? 0,
-        refundAmount = x.REFUND_AMOUNT ?? 0, 
-        netSales = x.NET_SALES ?? ((x.TOTAL_SALES ?? 0) - (x.REFUND_AMOUNT ?? 0)),
-        cashAmount = x.CASH_AMOUNT ?? 0, 
-        wechatAmount = x.WECHAT_AMOUNT ?? 0, 
-        alipayAmount = x.ALIPAY_AMOUNT ?? 0,
-        promotionDiscount = x.PROMOTION_DISCOUNT ?? 0, 
+        refundAmount = refundAmount,
+        netSales = (x.TOTAL_SALES ?? 0) - refundAmount,
+        orderCount = x.ORDER_COUNT ?? 0,
+        promotionDiscount = x.PROMOTION_DISCOUNT ?? 0,
         memberDiscount = x.MEMBER_DISCOUNT ?? 0,
-        couponDeduct = x.COUPON_DEDUCT ?? 0, 
-        pointDeduct = x.POINT_DEDUCT ?? 0, 
+        couponDeduct = x.COUPON_DEDUCT ?? 0,
+        pointDeduct = x.POINT_DEDUCT ?? 0,
         pointConsumed = x.POINT_CONSUMED ?? 0,
-        orderCount = x.ORDER_COUNT ?? 0, 
-        status = x.STATUS ?? string.Empty, 
+        status = x.STATUS ?? string.Empty,
         createTime = x.CREATE_TIME
     };
 
