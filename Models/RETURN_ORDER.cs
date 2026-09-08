@@ -41,7 +41,7 @@ public partial class RETURN_ORDER
     public decimal REFUND_AMOUNT { get; set; }
 
     /// <summary>
-    /// 退货状态
+    /// 退货状态：待处理/已审核/已完成/已拒绝
     /// </summary>
     public string STATUS { get; set; } = null!;
 

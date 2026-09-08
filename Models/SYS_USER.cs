@@ -68,8 +68,4 @@ public partial class SYS_USER
     public virtual ICollection<SALE_ORDER> SALE_ORDERs { get; set; } = new List<SALE_ORDER>();
 
     public virtual ICollection<STOCK_CHECK_ORDER> STOCK_CHECK_ORDERs { get; set; } = new List<STOCK_CHECK_ORDER>();
-
-    public virtual ICollection<TRANSFER_ORDER> TRANSFER_ORDERAPPLICANTs { get; set; } = new List<TRANSFER_ORDER>();
-
-    public virtual ICollection<TRANSFER_ORDER> TRANSFER_ORDERAPPROVERs { get; set; } = new List<TRANSFER_ORDER>();
 }

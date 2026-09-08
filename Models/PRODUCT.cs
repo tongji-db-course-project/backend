@@ -51,6 +51,4 @@ public partial class PRODUCT
     public virtual ICollection<STOCK_CHECK_DETAIL> STOCK_CHECK_DETAILs { get; set; } = new List<STOCK_CHECK_DETAIL>();
 
     public virtual SUPPLIER SUPPLIER { get; set; } = null!;
-
-    public virtual ICollection<TRANSFER_ORDER_DETAIL> TRANSFER_ORDER_DETAILs { get; set; } = new List<TRANSFER_ORDER_DETAIL>();
 }
