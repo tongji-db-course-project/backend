@@ -206,6 +206,8 @@ public class StatisticsController : ControllerBase
 
     [HttpPost("daily-settlements/{date:datetime}")]
     [Authorize(Roles = "1")]
+    [ProducesResponseType(typeof(ApiResponse<DailySettlementDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GenerateDailySettlement(DateTime date)
     {
         try { return Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GenerateDailySettlementAsync(date))); }
@@ -214,6 +216,8 @@ public class StatisticsController : ControllerBase
 
     [HttpGet("daily-settlements/{date:datetime}")]
     [Authorize(Roles = "1")]
+    [ProducesResponseType(typeof(ApiResponse<DailySettlementDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDailySettlement(DateTime date)
     {
         try { return Ok(ApiResponse<DailySettlementDto>.Ok(await _statisticsService.GetDailySettlementAsync(date))); }

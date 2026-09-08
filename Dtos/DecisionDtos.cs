@@ -34,15 +34,12 @@ public class DailySettlementDto
     public decimal totalSales { get; set; }
     public decimal refundAmount { get; set; }
     public decimal netSales { get; set; }
-    public decimal cashAmount { get; set; }
-    public decimal wechatAmount { get; set; }
-    public decimal alipayAmount { get; set; }
+    public int orderCount { get; set; }
     public decimal promotionDiscount { get; set; }
     public decimal memberDiscount { get; set; }
     public decimal couponDeduct { get; set; }
     public decimal pointDeduct { get; set; }
     public int pointConsumed { get; set; }
-    public int orderCount { get; set; }
     public string status { get; set; } = string.Empty;
     public DateTime? createTime { get; set; }
 }
