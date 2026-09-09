@@ -79,7 +79,7 @@ public class SaleService : ISaleService
                 items = x.SALE_ORDER_DETAILs.Select(d => new SaleDetailItemDto
                 {
                     productId = d.PRODUCT_ID,
-                    productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : null,
+                    productName = d.PRODUCT != null ? d.PRODUCT.PRODUCT_NAME : string.Empty,
                     quantity = d.SALE_QUANTITY ?? 0,
                     salePrice = d.SALE_PRICE ?? 0,
                     subtotal = (d.SALE_PRICE ?? 0) * (d.SALE_QUANTITY ?? 0)
@@ -94,8 +94,7 @@ public class SaleService : ISaleService
         var quantities = request.items.GroupBy(x => x.productId).ToDictionary(x => x.Key, x => x.Sum(i => i.quantity));
         if (quantities.Any(x => x.Key <= 0 || x.Value <= 0)) throw new ArgumentException("商品和数量必须大于 0");
 
-        var warehouseExists = await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == request.warehouseId);
-        if (!warehouseExists) throw new KeyNotFoundException("仓库不存在");
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db, request.warehouseId);
 
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         var now = DateTime.Now;
@@ -113,9 +112,9 @@ public class SaleService : ISaleService
         var productIds = quantities.Keys.OrderBy(x => x).ToList();
         var inList = string.Join(",", productIds);
         var lockSql = "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE";
-        await _db.Database.ExecuteSqlRawAsync(lockSql, request.warehouseId);
+        await _db.Database.ExecuteSqlRawAsync(lockSql, warehouseId);
         var inventories = await _db.INVENTORies
-            .Where(x => x.WAREHOUSE_ID == request.warehouseId && quantities.Keys.Contains(x.PRODUCT_ID))
+            .Where(x => x.WAREHOUSE_ID == warehouseId && quantities.Keys.Contains(x.PRODUCT_ID))
             .ToListAsync();
         if (inventories.Count != quantities.Count) throw new InvalidOperationException("部分商品在指定仓库没有库存记录");
         foreach (var inventory in inventories)
@@ -297,7 +296,7 @@ public class SaleService : ISaleService
             throw new InvalidOperationException("销售单存在退货记录，不能直接作废");
         var productIds = sale.SALE_ORDER_DETAILs.Select(x => x.PRODUCT_ID).OrderBy(x => x).ToList();
         var inList = string.Join(",", productIds);
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         await _db.Database.ExecuteSqlRawAsync(
             "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
             warehouseId);
@@ -382,20 +381,4 @@ public class SaleService : ISaleService
             }).ToListAsync();
     }
 
-    // 单仓库模式：作废恢复库存时固定退回唯一启用仓库，避免因未指定仓库而恢复到任意一条库存记录上。
-    private async Task<int> GetDefaultWarehouseIdAsync()
-    {
-        var warehouseIds = await _db.WAREHOUSEs.AsNoTracking()
-            .Where(x => x.STATUS == "启用")
-            .OrderBy(x => x.WAREHOUSE_ID)
-            .Select(x => x.WAREHOUSE_ID)
-            .Take(2)
-            .ToListAsync();
-        return warehouseIds.Count switch
-        {
-            0 => throw new InvalidOperationException("系统未配置启用仓库"),
-            > 1 => throw new InvalidOperationException("单仓库模式下只能配置一个启用仓库"),
-            _ => warehouseIds[0]
-        };
-    }
 }

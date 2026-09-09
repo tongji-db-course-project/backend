@@ -8,8 +8,9 @@ public class CreateSaleRequest
 
     public int? couponId { get; set; }
 
+    /// <summary>兼容旧客户端，已弃用；不传时由系统选择唯一启用仓库。</summary>
     [Range(1, int.MaxValue)]
-    public int warehouseId { get; set; }
+    public int? warehouseId { get; set; }
 
     [Required, MaxLength(20)]
     public string payType { get; set; } = string.Empty;
@@ -35,7 +36,8 @@ public class CheckoutSaleRequest
     public int? memberId { get; set; }
     public int? couponId { get; set; }
     [Range(1, int.MaxValue)] public int? userId { get; set; }
-    [Range(1, int.MaxValue)] public int warehouseId { get; set; } = 1;
+    /// <summary>兼容旧客户端，已弃用；不传时由系统选择唯一启用仓库。</summary>
+    [Range(1, int.MaxValue)] public int? warehouseId { get; set; }
     [Required, MaxLength(20)] public string payType { get; set; } = string.Empty;
     [Range(0, int.MaxValue)] public int redeemPoints { get; set; }
     public decimal? discountAmount { get; set; }

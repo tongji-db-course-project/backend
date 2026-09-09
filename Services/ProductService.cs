@@ -20,7 +20,7 @@ public class ProductService : IProductService
     /// <summary>
     /// 构建商品查询的基础查询（Include 导航属性 + 投影到 DTO）
     /// </summary>
-    private IQueryable<ProductListItemDto> BuildProductQuery()
+    private IQueryable<ProductListItemDto> BuildProductQuery(int warehouseId)
     {
         return _db.PRODUCTs
             .AsNoTracking()
@@ -43,7 +43,7 @@ public class ProductService : IProductService
                 categoryName = p.CATEGORY.CATEGORY_NAME,
                 supplierId = p.SUPPLIER_ID,
                 supplierName = p.SUPPLIER.SUPPLIER_NAME,
-                currentStock = p.INVENTORies
+                currentStock = p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
                                     .Select(i => (int?)i.CURRENT_STOCK)
                                     .FirstOrDefault() ?? 0
             });
@@ -57,6 +57,7 @@ public class ProductService : IProductService
         if (page < 1) page = 1;
         if (size < 1) size = 10;
         if (size > 100) size = 100;
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
 
         var query = _db.PRODUCTs
             .AsNoTracking()
@@ -82,8 +83,8 @@ public class ProductService : IProductService
 
         if (categoryId.HasValue) query = query.Where(p => p.CATEGORY_ID == categoryId.Value);
         if (supplierId.HasValue) query = query.Where(p => p.SUPPLIER_ID == supplierId.Value);
-        if (minStock.HasValue) query = query.Where(p => (p.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0) >= minStock.Value);
-        if (maxStock.HasValue) query = query.Where(p => (p.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0) <= maxStock.Value);
+        if (minStock.HasValue) query = query.Where(p => (p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId).Sum(i => (int?)i.CURRENT_STOCK) ?? 0) >= minStock.Value);
+        if (maxStock.HasValue) query = query.Where(p => (p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId).Sum(i => (int?)i.CURRENT_STOCK) ?? 0) <= maxStock.Value);
 
         // 先取总数，再按主键排序分页
         var total = await query.CountAsync();
@@ -110,7 +111,7 @@ public class ProductService : IProductService
                 supplierId = p.SUPPLIER_ID,
                 supplierName = p.SUPPLIER.SUPPLIER_NAME,
                 // 一个商品对应一条库存记录，取其当前库存；无记录时为 0
-                currentStock = p.INVENTORies
+                currentStock = p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
                                     .Select(i => (int?)i.CURRENT_STOCK)
                                     .FirstOrDefault() ?? 0
             })
@@ -127,13 +128,15 @@ public class ProductService : IProductService
 
     public async Task<ProductListItemDto?> GetProductByIdAsync(int productId)
     {
-        return await BuildProductQuery()
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
+        return await BuildProductQuery(warehouseId)
             .FirstOrDefaultAsync(p => p.productId == productId);
     }
 
     public async Task<ProductListItemDto?> GetProductByBarcodeAsync(string barcode)
     {
-        return await BuildProductQuery()
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
+        return await BuildProductQuery(warehouseId)
             .FirstOrDefaultAsync(p => p.barcode == barcode);
     }
 
@@ -142,6 +145,7 @@ public class ProductService : IProductService
         if (page < 1) page = 1;
         if (size < 1) size = 10;
         if (size > 100) size = 100;
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
 
         // 查询库存低于预警线的商品：当前库存 <= STOCK_WARNING 且 STOCK_WARNING 不为空
         var query = _db.PRODUCTs
@@ -152,7 +156,7 @@ public class ProductService : IProductService
             .Select(p => new
             {
                 Product = p,
-                CurrentStock = p.INVENTORies
+                CurrentStock = p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
                     .Select(i => (int?)i.CURRENT_STOCK)
                     .FirstOrDefault() ?? 0
             })

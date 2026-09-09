@@ -1,14 +1,13 @@
 using backend.Data;
 using backend.Dtos;
+using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
-/// <summary>
-/// 仓库管理
-/// </summary>
 [ApiController]
 [Route("warehouses")]
 [Authorize]
@@ -21,25 +20,14 @@ public class WarehousesController : ControllerBase
         _db = db;
     }
 
-    /// <summary>
-    /// 查询仓库列表
-    /// </summary>
     [HttpGet]
+    [Obsolete("单仓库模式下仓库列表接口仅用于兼容旧客户端")]
     public async Task<IActionResult> List()
     {
-        var items = await _db.WAREHOUSEs
-            .AsNoTracking()
-            .OrderBy(w => w.WAREHOUSE_ID)
-            .Select(w => new WarehouseDto
-            {
-                warehouseId = w.WAREHOUSE_ID,
-                warehouseName = w.WAREHOUSE_NAME,
-                address = w.ADDRESS,
-                status = w.STATUS,
-                createTime = w.CREATE_TIME
-            })
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
+        var items = await _db.WAREHOUSEs.AsNoTracking()
+            .Where(w => w.WAREHOUSE_ID == warehouseId)
             .ToListAsync();
-
-        return Ok(ApiResponse<IEnumerable<WarehouseDto>>.Ok(items));
+        return Ok(ApiResponse<IEnumerable<WAREHOUSE>>.Ok(items));
     }
 }

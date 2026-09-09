@@ -143,8 +143,7 @@ public class PurchaseReturnService : IPurchaseReturnService
     {
         if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == operatorId && x.STATUS == "启用"))
             throw new KeyNotFoundException("经办人不存在或已禁用");
-        if (!await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == request.warehouseId))
-            throw new KeyNotFoundException("仓库不存在");
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db, request.warehouseId);
 
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM PURCHASE_RETURN_ORDER WHERE RETURN_ID = {0} FOR UPDATE", returnId);
@@ -156,8 +155,8 @@ public class PurchaseReturnService : IPurchaseReturnService
         var inList = string.Join(",", productIds);
         await _db.Database.ExecuteSqlRawAsync(
             "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
-            request.warehouseId);
-        var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == request.warehouseId && productIds.Contains(x.PRODUCT_ID))
+            warehouseId);
+        var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID))
             .ToListAsync();
         if (inventories.Count != productIds.Count) throw new InvalidOperationException("部分退货商品在指定仓库没有库存记录");
         foreach (var detail in order.PURCHASE_RETURN_ORDER_DETAILs)

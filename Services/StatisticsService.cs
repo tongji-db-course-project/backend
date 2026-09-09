@@ -210,7 +210,9 @@ public class StatisticsService : IStatisticsService
     /// </summary>
     public async Task<InventoryStatistics> GetInventoryStatisticsAsync(DateTime? startDate, DateTime? endDate)
     {
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var inventories = await _db.INVENTORies.AsNoTracking()
+            .Where(i => i.WAREHOUSE_ID == warehouseId)
             .Select(i => new
             {
                 i.PRODUCT_ID,
@@ -221,13 +223,13 @@ public class StatisticsService : IStatisticsService
 
         var productCount = inventories.Select(i => i.PRODUCT_ID).Distinct().LongCount();
         var totalStock = (long)inventories.Sum(i => i.CURRENT_STOCK);
-        var warningProductCount = inventories
-            .Where(i => i.StockWarning.HasValue && i.CURRENT_STOCK < i.StockWarning.Value)
-            .Select(i => i.PRODUCT_ID)
-            .Distinct()
-            .LongCount();
+        var warningProductCount = await _db.PRODUCTs.AsNoTracking()
+            .Where(p => p.STATUS == "在售" && p.STOCK_WARNING.HasValue)
+            .LongCountAsync(p =>
+                (p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                    .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0) <= p.STOCK_WARNING!.Value);
 
-        var warehouseCount = await _db.WAREHOUSEs.AsNoTracking().LongCountAsync();
+        const long warehouseCount = 1;
 
         return new InventoryStatistics
         {
@@ -335,6 +337,7 @@ public class StatisticsService : IStatisticsService
         if (pageSize <= 0) pageSize = 50;
 
         var start = startDate.Date; var end = endDate.Date.AddDays(1);
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
 
         var nextPeriodStart = endDate.Date.AddDays(1);
         var changesQuery = _db.INVENTORY_RECORDs.AsNoTracking()
@@ -370,14 +373,15 @@ public class StatisticsService : IStatisticsService
         {
             x.PRODUCT_ID,
             x.PRODUCT_NAME,
-            CurrentEnding = x.INVENTORies.Sum(i => (int?)i.CURRENT_STOCK) ?? 0,
-            HasInventory = x.INVENTORies.Any()
+            CurrentEnding = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
+                .Sum(i => (int?)i.CURRENT_STOCK) ?? 0,
+            HasInventory = x.INVENTORies.Any(i => i.WAREHOUSE_ID == warehouseId)
         }).ToListAsync();
 
         var productIds = products.Select(p => p.PRODUCT_ID).ToList();
 
         var endLimit = endDate.Date.AddDays(1).AddTicks(-1);
-        var startLimitExclusive = startDate.Date; 
+        var startLimitExclusive = startDate.Date;
 
         var recordsBeforeEndAll = await _db.INVENTORY_RECORDs.AsNoTracking()
             .Where(r => productIds.Contains(r.PRODUCT_ID) && r.RECORD_TIME <= endLimit)
@@ -508,9 +512,9 @@ public class StatisticsService : IStatisticsService
                                   select (decimal?)t.FACE_VALUE).SumAsync() ?? 0;
         }
 
-        var pointDeduct = 0m; 
-        var memberDiscount = 0m; 
-        var promotionDiscount = 0m; 
+        var pointDeduct = 0m;
+        var memberDiscount = 0m;
+        var promotionDiscount = 0m;
         var refundAmount = await _db.RETURN_ORDERs.AsNoTracking()
             .Where(x => x.STATUS == "已完成" && x.UPDATE_TIME >= day && x.UPDATE_TIME < end)
             .SumAsync(x => (decimal?)x.REFUND_AMOUNT) ?? 0;
@@ -519,8 +523,8 @@ public class StatisticsService : IStatisticsService
         {
             SETTLEMENT_DATE = day,
             TOTAL_SALES = totalSales,
-            CASH_AMOUNT = 0, 
-            WECHAT_AMOUNT = 0, 
+            CASH_AMOUNT = 0,
+            WECHAT_AMOUNT = 0,
             ALIPAY_AMOUNT = 0,
             PROMOTION_DISCOUNT = promotionDiscount,
             MEMBER_DISCOUNT = memberDiscount,

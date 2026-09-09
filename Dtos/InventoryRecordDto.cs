@@ -9,6 +9,10 @@ public class InventoryRecordDto
 
     public int productId { get; set; }
 
+    public string productName { get; set; } = string.Empty;
+
+    public string? barcode { get; set; }
+
     public string recordType { get; set; } = string.Empty;
 
     public string? sourceNo { get; set; }
@@ -18,6 +22,8 @@ public class InventoryRecordDto
     public int remainQty { get; set; }
 
     public int operatorId { get; set; }
+
+    public string operatorName { get; set; } = string.Empty;
 
     public DateTime recordTime { get; set; }
 

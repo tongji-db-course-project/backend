@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using backend.Data;
 using backend.Dtos;
 using backend.Models;
@@ -27,15 +26,14 @@ public class InventoryService : IInventoryService
         int page, int size, string? keyword, string? status, int? productId, int? warehouseId)
     {
         NormalizePage(ref page, ref size);
-        var resolvedWarehouseId = await ResolveWarehouseIdAsync(warehouseId);
+        var resolvedWarehouseId = await SystemWarehouse.GetIdAsync(_db, warehouseId);
 
         var query = BuildInventoryQuery(resolvedWarehouseId, keyword, status, productId);
         var total = await query.CountAsync();
-        var list = await query
-            .OrderBy(x => x.PRODUCT_ID)
+        var list = await ProjectInventory(query)
+            .OrderBy(x => x.productId)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(MapInventoryExpr)
             .ToListAsync();
 
         return new PageResult<InventoryDto>
@@ -52,11 +50,10 @@ public class InventoryService : IInventoryService
         if (inventoryId <= 0)
             throw new BusinessException(400, "库存编号必须大于0");
 
-        var warehouseId = await GetDefaultWarehouseIdAsync();
-        var result = await _db.INVENTORies
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
+        var result = await ProjectInventory(_db.INVENTORies
             .AsNoTracking()
-            .Where(x => x.INVENTORY_ID == inventoryId && x.WAREHOUSE_ID == warehouseId)
-            .Select(MapInventoryExpr)
+            .Where(x => x.INVENTORY_ID == inventoryId && x.WAREHOUSE_ID == warehouseId))
             .SingleOrDefaultAsync();
 
         return result ?? throw new KeyNotFoundException("库存记录不存在");
@@ -67,11 +64,10 @@ public class InventoryService : IInventoryService
         if (productId <= 0)
             throw new BusinessException(400, "商品编号必须大于0");
 
-        var warehouseId = await GetDefaultWarehouseIdAsync();
-        var result = await _db.INVENTORies
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
+        var result = await ProjectInventory(_db.INVENTORies
             .AsNoTracking()
-            .Where(x => x.PRODUCT_ID == productId && x.WAREHOUSE_ID == warehouseId)
-            .Select(MapInventoryExpr)
+            .Where(x => x.PRODUCT_ID == productId && x.WAREHOUSE_ID == warehouseId))
             .SingleOrDefaultAsync();
 
         if (result is not null)
@@ -89,19 +85,50 @@ public class InventoryService : IInventoryService
         int page, int size, string? keyword, string? status, int? warehouseId)
     {
         NormalizePage(ref page, ref size);
-        var resolvedWarehouseId = await ResolveWarehouseIdAsync(warehouseId);
+        var resolvedWarehouseId = await SystemWarehouse.GetIdAsync(_db, warehouseId);
 
-        var query = BuildInventoryQuery(resolvedWarehouseId, keyword, status, null)
-            .Where(x => x.PRODUCT.STOCK_WARNING != null &&
-                        x.CURRENT_STOCK <= x.PRODUCT.STOCK_WARNING);
+        var query =
+            from product in _db.PRODUCTs.AsNoTracking()
+            join inventory in _db.INVENTORies.AsNoTracking().Where(x => x.WAREHOUSE_ID == resolvedWarehouseId)
+                on product.PRODUCT_ID equals inventory.PRODUCT_ID into inventoryGroup
+            from inventory in inventoryGroup.DefaultIfEmpty()
+            where product.STOCK_WARNING != null &&
+                  (inventory == null ? 0 : inventory.CURRENT_STOCK) <= product.STOCK_WARNING
+            select new { product, inventory };
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var value = keyword.Trim();
+            query = query.Where(x => x.product.PRODUCT_NAME.Contains(value) ||
+                (x.product.BARCODE != null && x.product.BARCODE.Contains(value)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var value = status.Trim();
+            query = query.Where(x => x.product.STATUS == value);
+        }
 
         var total = await query.CountAsync();
         var list = await query
-            .OrderBy(x => x.CURRENT_STOCK)
-            .ThenBy(x => x.PRODUCT_ID)
+            .OrderBy(x => x.inventory == null ? 0 : x.inventory.CURRENT_STOCK)
+            .ThenBy(x => x.product.PRODUCT_ID)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(MapInventoryExpr)
+            .Select(x => new InventoryDto
+            {
+                inventoryId = x.inventory == null ? 0 : x.inventory.INVENTORY_ID,
+                productId = x.product.PRODUCT_ID,
+                productName = x.product.PRODUCT_NAME,
+                barcode = x.product.BARCODE,
+                specification = x.product.SPECIFICATION,
+                unit = x.product.UNIT,
+                stockWarning = x.product.STOCK_WARNING,
+                warehouseId = resolvedWarehouseId,
+                warehouseName = x.inventory == null ? null : x.inventory.WAREHOUSE.WAREHOUSE_NAME,
+                currentStock = x.inventory == null ? 0 : x.inventory.CURRENT_STOCK,
+                lastUpdateTime = x.inventory == null ? null : x.inventory.LAST_UPDATE_TIME
+            })
             .ToListAsync();
 
         return new PageResult<InventoryDto>
@@ -114,9 +141,13 @@ public class InventoryService : IInventoryService
     }
 
     public async Task<PageResult<InventoryRecordDto>> ListRecordsAsync(
-        int page, int size, string? keyword, int? productId, string? recordType)
+        int page, int size, string? keyword, int? productId, string? recordType,
+        string? sourceNo, int? operatorId, DateTime? startDate, DateTime? endDate)
     {
         NormalizePage(ref page, ref size);
+
+        if (startDate.HasValue && endDate.HasValue && startDate.Value.Date > endDate.Value.Date)
+            throw new BusinessException(400, "开始日期不能大于结束日期");
 
         var query = _db.INVENTORY_RECORDs.AsNoTracking().AsQueryable();
 
@@ -143,6 +174,31 @@ public class InventoryService : IInventoryService
             query = query.Where(x => x.RECORD_TYPE == value);
         }
 
+        if (!string.IsNullOrWhiteSpace(sourceNo))
+        {
+            var value = sourceNo.Trim();
+            query = query.Where(x => x.SOURCE_NO != null && x.SOURCE_NO.Contains(value));
+        }
+
+        if (operatorId.HasValue)
+        {
+            if (operatorId.Value <= 0)
+                throw new BusinessException(400, "操作人编号必须大于0");
+            query = query.Where(x => x.OPERATOR_ID == operatorId.Value);
+        }
+
+        if (startDate.HasValue)
+        {
+            var start = startDate.Value.Date;
+            query = query.Where(x => x.RECORD_TIME >= start);
+        }
+
+        if (endDate.HasValue)
+        {
+            var end = endDate.Value.Date.AddDays(1);
+            query = query.Where(x => x.RECORD_TIME < end);
+        }
+
         var total = await query.CountAsync();
         var list = await query
             .OrderByDescending(x => x.RECORD_TIME)
@@ -153,11 +209,14 @@ public class InventoryService : IInventoryService
             {
                 recordId = x.RECORD_ID,
                 productId = x.PRODUCT_ID,
+                productName = x.PRODUCT.PRODUCT_NAME,
+                barcode = x.PRODUCT.BARCODE,
                 recordType = x.RECORD_TYPE,
                 sourceNo = x.SOURCE_NO,
                 changeQty = x.CHANGE_QTY,
                 remainQty = x.REMAIN_QTY,
                 operatorId = x.OPERATOR_ID,
+                operatorName = x.OPERATOR.REAL_NAME ?? x.OPERATOR.USERNAME,
                 recordTime = x.RECORD_TIME,
                 remark = x.REMARK
             })
@@ -175,14 +234,15 @@ public class InventoryService : IInventoryService
     public async Task<InventoryDto> AdjustInventoryAsync(
         InventoryAdjustDto request, int operatorId)
     {
-        if (request.changeQty == 0)
-            throw new BusinessException(400, "库存变动数量不能为0");
-
         var recordType = request.recordType.Trim() == "盘点调整" ? "盘点" : request.recordType.Trim();
         if (!AllowedManualRecordTypes.Contains(recordType))
             throw new BusinessException(400, "流水类型仅允许：手动入库、手动出库、盘点");
+        if (recordType == "盘点" && !request.actualStock.HasValue)
+            throw new BusinessException(400, "盘点必须提交实际库存");
+        if (recordType != "盘点" && request.changeQty == 0)
+            throw new BusinessException(400, "库存变动数量不能为0");
 
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var productExists = await _db.PRODUCTs
             .AsNoTracking()
             .AnyAsync(x => x.PRODUCT_ID == request.productId);
@@ -197,20 +257,34 @@ public class InventoryService : IInventoryService
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
+        // 盘点必须锁定库存行后再用实际库存重新计算差异，避免页面旧库存导致错账。
+        if (recordType == "盘点")
+            await _db.Database.ExecuteSqlRawAsync(
+                "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID = {1} FOR UPDATE",
+                warehouseId, request.productId);
+
         var inventory = await _db.INVENTORies
             .SingleOrDefaultAsync(x =>
                 x.PRODUCT_ID == request.productId && x.WAREHOUSE_ID == warehouseId);
 
+        var changeQty = request.changeQty;
+        if (recordType == "盘点")
+        {
+            changeQty = request.actualStock!.Value - (inventory?.CURRENT_STOCK ?? 0);
+            if (changeQty == 0)
+                throw new BusinessException(400, "实际库存与系统库存一致，无需调整");
+        }
+
         if (inventory is null)
         {
-            if (request.changeQty < 0)
+            if (changeQty < 0)
                 throw new BusinessException(409, "库存不足，该商品暂无库存记录");
 
             inventory = new INVENTORY
             {
                 PRODUCT_ID = request.productId,
                 WAREHOUSE_ID = warehouseId,
-                CURRENT_STOCK = request.changeQty,
+                CURRENT_STOCK = changeQty,
                 LAST_UPDATE_TIME = DateTime.Now
             };
             _db.INVENTORies.Add(inventory);
@@ -219,10 +293,10 @@ public class InventoryService : IInventoryService
         {
             var affectedRows = await _db.Database.ExecuteSqlInterpolatedAsync($@"
                 UPDATE INVENTORY
-                   SET CURRENT_STOCK = CURRENT_STOCK + {request.changeQty},
+                   SET CURRENT_STOCK = CURRENT_STOCK + {changeQty},
                        LAST_UPDATE_TIME = SYSDATE
                  WHERE INVENTORY_ID = {inventory.INVENTORY_ID}
-                   AND CURRENT_STOCK + {request.changeQty} >= 0");
+                   AND CURRENT_STOCK + {changeQty} >= 0");
 
             if (affectedRows == 0)
                 throw new BusinessException(409, $"库存不足，当前库存为{inventory.CURRENT_STOCK}");
@@ -235,7 +309,7 @@ public class InventoryService : IInventoryService
             PRODUCT_ID = request.productId,
             RECORD_TYPE = recordType,
             SOURCE_NO = NormalizeOptional(request.sourceNo),
-            CHANGE_QTY = request.changeQty,
+            CHANGE_QTY = changeQty,
             REMAIN_QTY = inventory.CURRENT_STOCK,
             OPERATOR_ID = operatorId,
             RECORD_TIME = DateTime.Now,
@@ -254,22 +328,20 @@ public class InventoryService : IInventoryService
             throw new BusinessException(409, "库存调整失败，请刷新后重试");
         }
 
-        return await GetInventoryByProductAsync(request.productId);
+        return await ProjectInventory(_db.INVENTORies.AsNoTracking()
+                .Where(x => x.INVENTORY_ID == inventory.INVENTORY_ID))
+            .SingleAsync();
     }
 
     public async Task<IReadOnlyList<SupplierPurchaseSuggestionDto>> GetPurchaseSuggestionsAsync()
     {
-        var warehouseId = await GetDefaultWarehouseIdAsync();
+        var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var warnings = await _db.PRODUCTs.AsNoTracking()
             .Where(x => x.STATUS == "在售")
             .Select(x => new
             {
-                x.PRODUCT_ID,
-                x.PRODUCT_NAME,
-                x.STOCK_WARNING,
-                x.SUPPLIER_ID,
-                x.SUPPLIER.SUPPLIER_NAME,
-                x.SUPPLIER.MIN_ORDER_QTY,
+                x.PRODUCT_ID, x.PRODUCT_NAME, x.STOCK_WARNING, x.SUPPLIER_ID,
+                x.SUPPLIER.SUPPLIER_NAME, x.SUPPLIER.MIN_ORDER_QTY,
                 CurrentStock = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
                     .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0
             })
@@ -324,52 +396,21 @@ public class InventoryService : IInventoryService
         return query;
     }
 
-    private async Task<int> GetDefaultWarehouseIdAsync()
-    {
-        var warehouseIds = await _db.WAREHOUSEs
-            .AsNoTracking()
-            .Where(x => x.STATUS == "启用")
-            .OrderBy(x => x.WAREHOUSE_ID)
-            .Select(x => x.WAREHOUSE_ID)
-            .Take(2)
-            .ToListAsync();
-
-        return warehouseIds.Count switch
+    private static IQueryable<InventoryDto> ProjectInventory(IQueryable<INVENTORY> query) =>
+        query.Select(inventory => new InventoryDto
         {
-            0 => throw new BusinessException(409, "系统未配置启用仓库"),
-            > 1 => throw new BusinessException(409, "单仓库模式下只能配置一个启用仓库"),
-            _ => warehouseIds[0]
-        };
-    }
-
-    private async Task<int> ResolveWarehouseIdAsync(int? warehouseId)
-    {
-        if (!warehouseId.HasValue) return await GetDefaultWarehouseIdAsync();
-        if (warehouseId.Value <= 0) throw new BusinessException(400, "仓库编号必须大于0");
-        if (!await _db.WAREHOUSEs.AsNoTracking().AnyAsync(x => x.WAREHOUSE_ID == warehouseId.Value))
-            throw new KeyNotFoundException("仓库不存在");
-        return warehouseId.Value;
-    }
-
-    /// <summary>
-    /// 库存映射表达式：JOIN 商品/仓库表展平名称、条码、预警值等字段，
-    /// 供 SELECT 在数据库端执行（前端库存页依赖 stockWarning 判断预警状态）
-    /// </summary>
-    private static readonly Expression<Func<INVENTORY, InventoryDto>> MapInventoryExpr =
-        x => new InventoryDto
-        {
-            inventoryId = x.INVENTORY_ID,
-            productId = x.PRODUCT_ID,
-            productName = x.PRODUCT.PRODUCT_NAME,
-            barcode = x.PRODUCT.BARCODE,
-            specification = x.PRODUCT.SPECIFICATION,
-            unit = x.PRODUCT.UNIT,
-            stockWarning = x.PRODUCT.STOCK_WARNING,
-            warehouseId = x.WAREHOUSE_ID,
-            warehouseName = x.WAREHOUSE.WAREHOUSE_NAME,
-            currentStock = x.CURRENT_STOCK,
-            lastUpdateTime = x.LAST_UPDATE_TIME
-        };
+            inventoryId = inventory.INVENTORY_ID,
+            productId = inventory.PRODUCT_ID,
+            productName = inventory.PRODUCT.PRODUCT_NAME,
+            barcode = inventory.PRODUCT.BARCODE,
+            specification = inventory.PRODUCT.SPECIFICATION,
+            unit = inventory.PRODUCT.UNIT,
+            stockWarning = inventory.PRODUCT.STOCK_WARNING,
+            warehouseId = inventory.WAREHOUSE_ID,
+            warehouseName = inventory.WAREHOUSE.WAREHOUSE_NAME,
+            currentStock = inventory.CURRENT_STOCK,
+            lastUpdateTime = inventory.LAST_UPDATE_TIME
+        });
 
     private static void NormalizePage(ref int page, ref int size)
     {
