@@ -87,6 +87,22 @@ public class SaleService : ISaleService
             }).FirstOrDefaultAsync() ?? throw new KeyNotFoundException("销售单不存在");
     }
 
+    public async Task<PointConfigDto> GetPointConfigAsync()
+    {
+        var config = await _db.POINT_CONFIGs.AsNoTracking()
+            .Where(x => x.STATUS == "启用")
+            .OrderByDescending(x => x.UPDATE_TIME)
+            .FirstOrDefaultAsync() ?? throw new InvalidOperationException("当前没有启用的积分规则");
+
+        return new PointConfigDto
+        {
+            earnRate = config.EARN_RATE,
+            redeemRate = config.REDEEM_RATE,
+            redeemMin = config.REDEEM_MIN ?? 0,
+            redeemMaxRate = config.REDEEM_MAX_RATE ?? 0.5m
+        };
+    }
+
     public async Task<SaleDetailDto> CreateAsync(CreateSaleRequest request, int userId)
     {
         if (request.items.Count == 0) throw new ArgumentException("销售商品不能为空");

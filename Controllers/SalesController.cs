@@ -27,6 +27,13 @@ public class SalesController : ControllerBase
         catch (KeyNotFoundException ex) { return Error(ex); }
     }
 
+    [HttpGet("point-config")]
+    public async Task<IActionResult> PointConfig()
+    {
+        try { return Ok(ApiResponse<PointConfigDto>.Ok(await _service.GetPointConfigAsync())); }
+        catch (InvalidOperationException ex) { return Error(ex); }
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CheckoutSaleRequest request)
     {
