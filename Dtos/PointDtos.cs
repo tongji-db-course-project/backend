@@ -24,6 +24,14 @@ public class MemberPointsDto
     public PageResult<PointRecordDto> records { get; set; } = new();
 }
 
+public class PointConfigDto
+{
+    public decimal earnRate { get; set; }
+    public decimal redeemRate { get; set; }
+    public int redeemMin { get; set; }
+    public decimal redeemMaxRate { get; set; }
+}
+
 public class AdjustPointsRequest
 {
     [Range(-1000000, 1000000)]

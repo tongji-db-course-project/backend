@@ -28,12 +28,12 @@ public partial class STOCK_CHECK_DETAIL
     /// <summary>
     /// 实际盘点数量
     /// </summary>
-    public int ACTUAL_QTY { get; set; }
+    public int? ACTUAL_QTY { get; set; }
 
     /// <summary>
     /// 差异数量（实际-系统，正=盘盈，负=盘亏）
     /// </summary>
-    public int DIFFERENCE_QTY { get; set; }
+    public int? DIFFERENCE_QTY { get; set; }
 
     /// <summary>
     /// 调整单价

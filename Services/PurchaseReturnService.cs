@@ -159,6 +159,8 @@ public class PurchaseReturnService : IPurchaseReturnService
         var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID))
             .ToListAsync();
         if (inventories.Count != productIds.Count) throw new InvalidOperationException("部分退货商品在指定仓库没有库存记录");
+        var lockedInventory = inventories.FirstOrDefault(x => x.IS_LOCKED == "是");
+        if (lockedInventory is not null) throw new InvalidOperationException($"商品正在盘点，盘点单号：{lockedInventory.LOCK_NO}");
         foreach (var detail in order.PURCHASE_RETURN_ORDER_DETAILs)
         {
             var inventory = inventories.First(x => x.PRODUCT_ID == detail.PRODUCT_ID);

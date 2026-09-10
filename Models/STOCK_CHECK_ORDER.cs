@@ -21,11 +21,6 @@ public partial class STOCK_CHECK_ORDER
     public int WAREHOUSE_ID { get; set; }
 
     /// <summary>
-    /// 盘点类型：定期盘点/动态盘点
-    /// </summary>
-    public string? CHECK_TYPE { get; set; }
-
-    /// <summary>
     /// 盘点单状态
     /// </summary>
     public string? STATUS { get; set; }

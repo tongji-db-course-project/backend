@@ -87,6 +87,22 @@ public class SaleService : ISaleService
             }).FirstOrDefaultAsync() ?? throw new KeyNotFoundException("销售单不存在");
     }
 
+    public async Task<PointConfigDto> GetPointConfigAsync()
+    {
+        var config = await _db.POINT_CONFIGs.AsNoTracking()
+            .Where(x => x.STATUS == "启用")
+            .OrderByDescending(x => x.UPDATE_TIME)
+            .FirstOrDefaultAsync() ?? throw new InvalidOperationException("当前没有启用的积分规则");
+
+        return new PointConfigDto
+        {
+            earnRate = config.EARN_RATE,
+            redeemRate = config.REDEEM_RATE,
+            redeemMin = config.REDEEM_MIN ?? 0,
+            redeemMaxRate = config.REDEEM_MAX_RATE ?? 0.5m
+        };
+    }
+
     public async Task<SaleDetailDto> CreateAsync(CreateSaleRequest request, int userId)
     {
         if (request.items.Count == 0) throw new ArgumentException("销售商品不能为空");
@@ -117,6 +133,8 @@ public class SaleService : ISaleService
             .Where(x => x.WAREHOUSE_ID == warehouseId && quantities.Keys.Contains(x.PRODUCT_ID))
             .ToListAsync();
         if (inventories.Count != quantities.Count) throw new InvalidOperationException("部分商品在指定仓库没有库存记录");
+        var lockedInventory = inventories.FirstOrDefault(x => x.IS_LOCKED == "是");
+        if (lockedInventory is not null) throw new InvalidOperationException($"商品正在盘点，盘点单号：{lockedInventory.LOCK_NO}");
         foreach (var inventory in inventories)
             if (inventory.CURRENT_STOCK < quantities[inventory.PRODUCT_ID])
                 throw new InvalidOperationException($"商品“{products.First(x => x.PRODUCT_ID == inventory.PRODUCT_ID).PRODUCT_NAME}”库存不足");
@@ -144,6 +162,7 @@ public class SaleService : ISaleService
         {
             "钻石会员" or "钻石" => 0.90m,
             "黄金会员" or "黄金" => 0.95m,
+            "普通会员" or "普通" => 1.00m,
             _ => 1m
         };
         var memberDiscount = Math.Round(total * (1 - memberRate), 2, MidpointRounding.AwayFromZero);
@@ -278,7 +297,7 @@ public class SaleService : ISaleService
         });
         if (member is not null)
         {
-            await MemberLevelPolicy.RefreshAsync(_db, member.MEMBER_ID, now);
+            await MemberLevelPolicy.ApplyAmountChangeAsync(_db, member.MEMBER_ID, order.PAID_AMOUNT ?? 0);
         }
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -301,6 +320,8 @@ public class SaleService : ISaleService
             "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
             warehouseId);
         var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID)).ToListAsync();
+        var lockedInventory = inventories.FirstOrDefault(x => x.IS_LOCKED == "是");
+        if (lockedInventory is not null) throw new InvalidOperationException($"商品正在盘点，盘点单号：{lockedInventory.LOCK_NO}");
         var now = DateTime.Now;
         foreach (var detail in sale.SALE_ORDER_DETAILs)
         {
@@ -359,7 +380,8 @@ public class SaleService : ISaleService
             REMARK = "销售单作废"
         });
         await _db.SaveChangesAsync();
-        if (sale.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, sale.MEMBER_ID.Value, now);
+        if (sale.MEMBER_ID.HasValue)
+            await MemberLevelPolicy.ApplyAmountChangeAsync(_db, sale.MEMBER_ID.Value, -(sale.PAID_AMOUNT ?? 0));
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
     }

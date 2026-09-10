@@ -53,5 +53,13 @@ public partial class AppDbContext
         modelBuilder.Entity<Models.PURCHASE_ORDER_DETAIL>()
             .Property(x => x.PURCHASE_DETAIL_ID)
             .ValueGeneratedOnAdd();
+
+        modelBuilder.Entity<Models.STOCK_CHECK_ORDER>()
+            .Property(x => x.CHECK_ID)
+            .ValueGeneratedOnAdd();
+
+        modelBuilder.Entity<Models.STOCK_CHECK_DETAIL>()
+            .Property(x => x.DETAIL_ID)
+            .ValueGeneratedOnAdd();
     }
 }
