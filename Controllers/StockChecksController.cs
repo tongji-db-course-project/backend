@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
-[ApiController, Route("inventory/counts"), Authorize(Roles = "1")]
+[ApiController, Route("inventory/counts"), Authorize(Roles = "1,2")]
 public class StockChecksController : ControllerBase
 {
     private readonly IStockCheckService _service;
