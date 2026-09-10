@@ -146,6 +146,7 @@ public class SaleService : ISaleService
         {
             "钻石会员" or "钻石" => 0.90m,
             "黄金会员" or "黄金" => 0.95m,
+            "普通会员" or "普通" => 1.00m,
             _ => 1m
         };
         var memberDiscount = Math.Round(total * (1 - memberRate), 2, MidpointRounding.AwayFromZero);
@@ -280,7 +281,7 @@ public class SaleService : ISaleService
         });
         if (member is not null)
         {
-            await MemberLevelPolicy.RefreshAsync(_db, member.MEMBER_ID, now);
+            await MemberLevelPolicy.ApplyAmountChangeAsync(_db, member.MEMBER_ID, order.PAID_AMOUNT ?? 0);
         }
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -363,7 +364,8 @@ public class SaleService : ISaleService
             REMARK = "销售单作废"
         });
         await _db.SaveChangesAsync();
-        if (sale.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, sale.MEMBER_ID.Value, now);
+        if (sale.MEMBER_ID.HasValue)
+            await MemberLevelPolicy.ApplyAmountChangeAsync(_db, sale.MEMBER_ID.Value, -(sale.PAID_AMOUNT ?? 0));
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
     }

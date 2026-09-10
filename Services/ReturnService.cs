@@ -272,7 +272,8 @@ public class ReturnService : IReturnService
             REMARK = "确认销售退货入库并完成退款、积分冲销"
         });
         await _db.SaveChangesAsync();
-        if (order.MEMBER_ID.HasValue) await MemberLevelPolicy.RefreshAsync(_db, order.MEMBER_ID.Value, now);
+        if (order.MEMBER_ID.HasValue)
+            await MemberLevelPolicy.ApplyAmountChangeAsync(_db, order.MEMBER_ID.Value, -order.REFUND_AMOUNT);
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await GetAsync(returnId);
