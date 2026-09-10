@@ -11,9 +11,14 @@ public class SettlementService : ISettlementService
     private readonly AppDbContext _db;
     public SettlementService(AppDbContext db) => _db = db;
 
-    public async Task<PageResult<SettlementDto>> ListAsync(int page, int size, string? keyword, string? status, int? supplierId)
+    public async Task<PageResult<SettlementDto>> ListAsync(
+        int page, int size, string? keyword, string? status, int? supplierId,
+        DateTime? startDate = null, DateTime? endDate = null)
     {
         page = Math.Max(1, page); size = Math.Clamp(size, 1, 100);
+        if (startDate.HasValue && endDate.HasValue && startDate.Value.Date > endDate.Value.Date)
+            throw new ArgumentException("开始日期不能晚于结束日期");
+
         var query = _db.SUPPLIER_SETTLEMENTs.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -22,6 +27,16 @@ public class SettlementService : ISettlementService
         }
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.STATUS == status.Trim());
         if (supplierId.HasValue) query = query.Where(x => x.SUPPLIER_ID == supplierId.Value);
+        if (startDate.HasValue)
+        {
+            var start = startDate.Value.Date;
+            query = query.Where(x => x.SETTLEMENT_DATE >= start);
+        }
+        if (endDate.HasValue)
+        {
+            var endExclusive = endDate.Value.Date.AddDays(1);
+            query = query.Where(x => x.SETTLEMENT_DATE < endExclusive);
+        }
         var total = await query.CountAsync();
         var list = await Project(query.OrderByDescending(x => x.SETTLEMENT_DATE).ThenByDescending(x => x.SETTLEMENT_ID))
             .Skip((page - 1) * size).Take(size).ToListAsync();

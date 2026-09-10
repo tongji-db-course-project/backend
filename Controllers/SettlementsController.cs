@@ -12,8 +12,10 @@ public class SettlementsController : ControllerBase
     public SettlementsController(ISettlementService service) => _service = service;
 
     [HttpGet]
-    public async Task<IActionResult> List(int page = 1, int size = 10, string? keyword = null, string? status = null, int? supplierId = null) =>
-        Ok(ApiResponse<PageResult<SettlementDto>>.Ok(await _service.ListAsync(page, size, keyword, status, supplierId)));
+    public async Task<IActionResult> List(
+        int page = 1, int size = 10, string? keyword = null, string? status = null,
+        int? supplierId = null, DateTime? startDate = null, DateTime? endDate = null) =>
+        await Execute(() => _service.ListAsync(page, size, keyword, status, supplierId, startDate, endDate));
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSettlementRequest request) => await Execute(() => _service.CreateAsync(request));

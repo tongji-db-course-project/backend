@@ -4,7 +4,9 @@ namespace backend.Services;
 
 public interface ISettlementService
 {
-    Task<PageResult<SettlementDto>> ListAsync(int page, int size, string? keyword, string? status, int? supplierId);
+    Task<PageResult<SettlementDto>> ListAsync(
+        int page, int size, string? keyword, string? status, int? supplierId,
+        DateTime? startDate = null, DateTime? endDate = null);
     Task<SettlementDto> GetAsync(int settlementId);
     Task<SettlementDto> CreateAsync(CreateSettlementRequest request);
     Task<SettlementDto> PayAsync(int settlementId, PaySettlementRequest request);
