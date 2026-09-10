@@ -25,5 +25,9 @@ public class InventoryDto
 
     public int currentStock { get; set; }
 
+    public bool isLocked { get; set; }
+
+    public string? lockNo { get; set; }
+
     public DateTime? lastUpdateTime { get; set; }
 }

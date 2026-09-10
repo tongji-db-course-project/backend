@@ -195,6 +195,8 @@ public class ReturnService : IReturnService
             warehouseId);
         var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID))
             .ToListAsync();
+        var lockedInventory = inventories.FirstOrDefault(x => x.IS_LOCKED == "是");
+        if (lockedInventory is not null) throw new InvalidOperationException($"商品正在盘点，盘点单号：{lockedInventory.LOCK_NO}");
         var now = DateTime.Now;
         foreach (var detail in order.RETURN_ORDER_DETAILs)
         {

@@ -117,6 +117,8 @@ public class SaleService : ISaleService
             .Where(x => x.WAREHOUSE_ID == warehouseId && quantities.Keys.Contains(x.PRODUCT_ID))
             .ToListAsync();
         if (inventories.Count != quantities.Count) throw new InvalidOperationException("部分商品在指定仓库没有库存记录");
+        var lockedInventory = inventories.FirstOrDefault(x => x.IS_LOCKED == "是");
+        if (lockedInventory is not null) throw new InvalidOperationException($"商品正在盘点，盘点单号：{lockedInventory.LOCK_NO}");
         foreach (var inventory in inventories)
             if (inventory.CURRENT_STOCK < quantities[inventory.PRODUCT_ID])
                 throw new InvalidOperationException($"商品“{products.First(x => x.PRODUCT_ID == inventory.PRODUCT_ID).PRODUCT_NAME}”库存不足");
@@ -301,6 +303,8 @@ public class SaleService : ISaleService
             "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID IN (" + inList + ") ORDER BY PRODUCT_ID FOR UPDATE",
             warehouseId);
         var inventories = await _db.INVENTORies.Where(x => x.WAREHOUSE_ID == warehouseId && productIds.Contains(x.PRODUCT_ID)).ToListAsync();
+        var lockedInventory = inventories.FirstOrDefault(x => x.IS_LOCKED == "是");
+        if (lockedInventory is not null) throw new InvalidOperationException($"商品正在盘点，盘点单号：{lockedInventory.LOCK_NO}");
         var now = DateTime.Now;
         foreach (var detail in sale.SALE_ORDER_DETAILs)
         {

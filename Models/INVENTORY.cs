@@ -30,6 +30,12 @@ public partial class INVENTORY
     /// </summary>
     public DateTime LAST_UPDATE_TIME { get; set; }
 
+    public string IS_LOCKED { get; set; } = null!;
+
+    public string? LOCK_NO { get; set; }
+
+    public DateTime? LOCK_TIME { get; set; }
+
     public virtual PRODUCT PRODUCT { get; set; } = null!;
 
     public virtual WAREHOUSE WAREHOUSE { get; set; } = null!;

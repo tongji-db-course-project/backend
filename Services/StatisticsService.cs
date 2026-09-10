@@ -227,7 +227,7 @@ public class StatisticsService : IStatisticsService
             .Where(p => p.STATUS == "在售" && p.STOCK_WARNING.HasValue)
             .LongCountAsync(p =>
                 (p.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
-                    .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0) <= p.STOCK_WARNING!.Value);
+                    .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0) < p.STOCK_WARNING!.Value);
 
         const long warehouseCount = 1;
 

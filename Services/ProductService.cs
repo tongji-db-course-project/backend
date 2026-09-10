@@ -147,7 +147,7 @@ public class ProductService : IProductService
         if (size > 100) size = 100;
         var warehouseId = await SystemWarehouse.GetIdAsync(_db);
 
-        // 查询库存低于预警线的商品：当前库存 <= STOCK_WARNING 且 STOCK_WARNING 不为空
+        // 查询库存低于预警线的商品：当前库存 < STOCK_WARNING 且 STOCK_WARNING 不为空
         var query = _db.PRODUCTs
             .AsNoTracking()
             .Include(p => p.CATEGORY)
@@ -160,7 +160,7 @@ public class ProductService : IProductService
                     .Select(i => (int?)i.CURRENT_STOCK)
                     .FirstOrDefault() ?? 0
             })
-            .Where(x => x.CurrentStock <= x.Product.STOCK_WARNING)
+            .Where(x => x.CurrentStock < x.Product.STOCK_WARNING)
             .Select(x => new ProductListItemDto
             {
                 productId = x.Product.PRODUCT_ID,

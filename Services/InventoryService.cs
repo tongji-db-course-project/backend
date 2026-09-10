@@ -11,7 +11,7 @@ namespace backend.Services;
 public class InventoryService : IInventoryService
 {
     private static readonly HashSet<string> AllowedManualRecordTypes =
-        new(StringComparer.Ordinal) { "手动入库", "手动出库", "盘点" };
+        new(StringComparer.Ordinal) { "手动入库", "手动出库" };
 
     private readonly AppDbContext _db;
     private readonly ILogger<InventoryService> _logger;
@@ -93,7 +93,7 @@ public class InventoryService : IInventoryService
                 on product.PRODUCT_ID equals inventory.PRODUCT_ID into inventoryGroup
             from inventory in inventoryGroup.DefaultIfEmpty()
             where product.STOCK_WARNING != null &&
-                  (inventory == null ? 0 : inventory.CURRENT_STOCK) <= product.STOCK_WARNING
+                  (inventory == null ? 0 : inventory.CURRENT_STOCK) < product.STOCK_WARNING
             select new { product, inventory };
 
         if (!string.IsNullOrWhiteSpace(keyword))
@@ -127,6 +127,8 @@ public class InventoryService : IInventoryService
                 warehouseId = resolvedWarehouseId,
                 warehouseName = x.inventory == null ? null : x.inventory.WAREHOUSE.WAREHOUSE_NAME,
                 currentStock = x.inventory == null ? 0 : x.inventory.CURRENT_STOCK,
+                isLocked = x.inventory != null && x.inventory.IS_LOCKED == "是",
+                lockNo = x.inventory == null ? null : x.inventory.LOCK_NO,
                 lastUpdateTime = x.inventory == null ? null : x.inventory.LAST_UPDATE_TIME
             })
             .ToListAsync();
@@ -235,11 +237,11 @@ public class InventoryService : IInventoryService
         InventoryAdjustDto request, int operatorId)
     {
         var recordType = request.recordType.Trim() == "盘点调整" ? "盘点" : request.recordType.Trim();
+        if (recordType == "盘点")
+            throw new BusinessException(400, "请通过库存盘点单完成盘点调整");
         if (!AllowedManualRecordTypes.Contains(recordType))
-            throw new BusinessException(400, "流水类型仅允许：手动入库、手动出库、盘点");
-        if (recordType == "盘点" && !request.actualStock.HasValue)
-            throw new BusinessException(400, "盘点必须提交实际库存");
-        if (recordType != "盘点" && request.changeQty == 0)
+            throw new BusinessException(400, "流水类型仅允许：手动入库、手动出库");
+        if (request.changeQty == 0)
             throw new BusinessException(400, "库存变动数量不能为0");
 
         var warehouseId = await SystemWarehouse.GetIdAsync(_db);
@@ -257,23 +259,13 @@ public class InventoryService : IInventoryService
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
 
-        // 盘点必须锁定库存行后再用实际库存重新计算差异，避免页面旧库存导致错账。
-        if (recordType == "盘点")
-            await _db.Database.ExecuteSqlRawAsync(
-                "SELECT * FROM INVENTORY WHERE WAREHOUSE_ID = {0} AND PRODUCT_ID = {1} FOR UPDATE",
-                warehouseId, request.productId);
-
         var inventory = await _db.INVENTORies
             .SingleOrDefaultAsync(x =>
                 x.PRODUCT_ID == request.productId && x.WAREHOUSE_ID == warehouseId);
 
         var changeQty = request.changeQty;
-        if (recordType == "盘点")
-        {
-            changeQty = request.actualStock!.Value - (inventory?.CURRENT_STOCK ?? 0);
-            if (changeQty == 0)
-                throw new BusinessException(400, "实际库存与系统库存一致，无需调整");
-        }
+        if (inventory?.IS_LOCKED == "是")
+            throw new BusinessException(409, $"商品正在盘点，盘点单号：{inventory.LOCK_NO}");
 
         if (inventory is null)
         {
@@ -296,10 +288,16 @@ public class InventoryService : IInventoryService
                    SET CURRENT_STOCK = CURRENT_STOCK + {changeQty},
                        LAST_UPDATE_TIME = SYSDATE
                  WHERE INVENTORY_ID = {inventory.INVENTORY_ID}
+                   AND IS_LOCKED = '否'
                    AND CURRENT_STOCK + {changeQty} >= 0");
 
             if (affectedRows == 0)
+            {
+                await _db.Entry(inventory).ReloadAsync();
+                if (inventory.IS_LOCKED == "是")
+                    throw new BusinessException(409, $"商品正在盘点，盘点单号：{inventory.LOCK_NO}");
                 throw new BusinessException(409, $"库存不足，当前库存为{inventory.CURRENT_STOCK}");
+            }
 
             await _db.Entry(inventory).ReloadAsync();
         }
@@ -337,7 +335,7 @@ public class InventoryService : IInventoryService
     {
         var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var warnings = await _db.PRODUCTs.AsNoTracking()
-            .Where(x => x.STATUS == "在售")
+            .Where(x => x.STATUS == "在售" && x.SUPPLIER.STATUS == "启用")
             .Select(x => new
             {
                 x.PRODUCT_ID, x.PRODUCT_NAME, x.STOCK_WARNING, x.SUPPLIER_ID,
@@ -345,7 +343,7 @@ public class InventoryService : IInventoryService
                 CurrentStock = x.INVENTORies.Where(i => i.WAREHOUSE_ID == warehouseId)
                     .Select(i => (int?)i.CURRENT_STOCK).FirstOrDefault() ?? 0
             })
-            .Where(x => x.STOCK_WARNING.HasValue && x.CurrentStock <= x.STOCK_WARNING.Value)
+            .Where(x => x.STOCK_WARNING.HasValue && x.CurrentStock < x.STOCK_WARNING.Value)
             .ToListAsync();
 
         return warnings.GroupBy(x => new { x.SUPPLIER_ID, x.SUPPLIER_NAME })
@@ -409,6 +407,8 @@ public class InventoryService : IInventoryService
             warehouseId = inventory.WAREHOUSE_ID,
             warehouseName = inventory.WAREHOUSE.WAREHOUSE_NAME,
             currentStock = inventory.CURRENT_STOCK,
+            isLocked = inventory.IS_LOCKED == "是",
+            lockNo = inventory.LOCK_NO,
             lastUpdateTime = inventory.LAST_UPDATE_TIME
         });
 
