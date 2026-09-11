@@ -41,7 +41,7 @@ public class PurchaseOrdersController : ControllerBase
     /// 创建采购订单（初始为待审批状态）
     /// </summary>
     [HttpPost(Name = "createPurchaseOrder")]
-    [Authorize(Roles = "2")]
+    [Authorize(Roles = "1,2")]
     [ProducesResponseType(typeof(ApiResponse<PurchaseOrderDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateOrder([FromBody] CreatePurchaseOrderRequest request)
     {
@@ -81,7 +81,7 @@ public class PurchaseOrdersController : ControllerBase
     /// 修改采购订单（仅待审批状态可修改）
     /// </summary>
     [HttpPut("{orderId:int}", Name = "updatePurchaseOrder")]
-    [Authorize(Roles = "2")]
+    [Authorize(Roles = "1,2")]
     [ProducesResponseType(typeof(ApiResponse<PurchaseOrderDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateOrder(
         [FromRoute] int orderId,
@@ -145,7 +145,7 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     [HttpPost("{orderId:int}/submit", Name = "submitPurchaseOrder")]
-    [Authorize(Roles = "2")]
+    [Authorize(Roles = "1,2")]
     public async Task<IActionResult> SubmitOrder([FromRoute] int orderId)
     {
         try { return Ok(ApiResponse<OrderStatusResultDto>.Ok(await _purchaseOrderService.SubmitOrderAsync(orderId))); }
@@ -180,7 +180,7 @@ public class PurchaseOrdersController : ControllerBase
     /// 采购入库（加库存 + 记流水 + 生成结算，事务保证原子性）
     /// </summary>
     [HttpPost("{orderId:int}/stock-in", Name = "stockInPurchaseOrder")]
-    [Authorize(Roles = "2")]
+    [Authorize(Roles = "1,2")]
     [ProducesResponseType(typeof(ApiResponse<PurchaseStockInResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> StockIn(
         [FromRoute] int orderId,

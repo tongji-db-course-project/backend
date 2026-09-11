@@ -1,6 +1,5 @@
 using backend.Data;
 using backend.Dtos;
-using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +26,15 @@ public class WarehousesController : ControllerBase
         var warehouseId = await SystemWarehouse.GetIdAsync(_db);
         var items = await _db.WAREHOUSEs.AsNoTracking()
             .Where(w => w.WAREHOUSE_ID == warehouseId)
+            .Select(w => new WarehouseDto
+            {
+                warehouseId = w.WAREHOUSE_ID,
+                warehouseName = w.WAREHOUSE_NAME,
+                address = w.ADDRESS,
+                status = w.STATUS,
+                createTime = w.CREATE_TIME,
+            })
             .ToListAsync();
-        return Ok(ApiResponse<IEnumerable<WAREHOUSE>>.Ok(items));
+        return Ok(ApiResponse<IEnumerable<WarehouseDto>>.Ok(items));
     }
 }
