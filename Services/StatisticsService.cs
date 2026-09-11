@@ -18,14 +18,13 @@ public class StatisticsService : IStatisticsService
     }
 
     /// <summary>
-    /// 按日期统计销售数据（按天分组，返回每天的统计）
+    /// 按日期统计销售数据
     /// </summary>
     public async Task<List<SalesStatistics>> GetDailySalesStatisticsAsync(DateTime startDate, DateTime endDate)
     {
         var start = startDate.Date;
         var end = endDate.Date.AddDays(1).AddSeconds(-1);
 
-        // 按天分组统计销售订单
         var dailySales = await _db.SALE_ORDERs.AsNoTracking()
             .Where(o => o.STATUS == "已完成" && o.SALE_DATE >= start && o.SALE_DATE <= end)
             .GroupBy(o => o.SALE_DATE!.Value.Date)
@@ -38,7 +37,6 @@ public class StatisticsService : IStatisticsService
             })
             .ToListAsync();
 
-        // 按天分组统计退款金额
         var dailyRefunds = await _db.RETURN_ORDERs.AsNoTracking()
             .Where(r => r.STATUS == "已完成" && r.RETURN_DATE >= start && r.RETURN_DATE <= end)
             .GroupBy(r => r.RETURN_DATE.Date)
@@ -49,7 +47,6 @@ public class StatisticsService : IStatisticsService
             })
             .ToListAsync();
 
-        // 合并销售和退款数据
         var refundDict = dailyRefunds.ToDictionary(r => r.StatDate, r => r.RefundAmount);
         var allDates = dailySales.Select(s => s.StatDate)
             .Union(refundDict.Keys)
@@ -74,14 +71,13 @@ public class StatisticsService : IStatisticsService
     }
 
     /// <summary>
-    /// 按月份统计销售数据（按月分组，返回每月的统计）
+    /// 按月份统计销售数据
     /// </summary>
     public async Task<List<MonthlySalesStatistics>> GetMonthlySalesStatisticsAsync(DateTime startDate, DateTime endDate)
     {
         var start = startDate.Date;
         var end = endDate.Date.AddDays(1).AddSeconds(-1);
 
-        // 按月分组统计销售订单
         var monthlySales = await _db.SALE_ORDERs.AsNoTracking()
             .Where(o => o.STATUS == "已完成" && o.SALE_DATE >= start && o.SALE_DATE <= end)
             .GroupBy(o => new { o.SALE_DATE!.Value.Year, o.SALE_DATE!.Value.Month })
@@ -95,7 +91,6 @@ public class StatisticsService : IStatisticsService
             })
             .ToListAsync();
 
-        // 按月分组统计退款金额
         var monthlyRefunds = await _db.RETURN_ORDERs.AsNoTracking()
             .Where(r => r.STATUS == "已完成" && r.RETURN_DATE >= start && r.RETURN_DATE <= end)
             .GroupBy(r => new { r.RETURN_DATE.Year, r.RETURN_DATE.Month })
@@ -107,7 +102,6 @@ public class StatisticsService : IStatisticsService
             })
             .ToListAsync();
 
-        // 合并销售和退款数据
         var refundDict = monthlyRefunds.ToDictionary(r => (r.Year, r.Month), r => r.RefundAmount);
         var allMonths = monthlySales.Select(s => (s.Year, s.Month))
             .Union(refundDict.Keys)
@@ -206,7 +200,7 @@ public class StatisticsService : IStatisticsService
     }
 
     /// <summary>
-    /// 库存统计 - 统计库存总量和低库存数量
+    /// 库存统计
     /// </summary>
     public async Task<InventoryStatistics> GetInventoryStatisticsAsync(DateTime? startDate, DateTime? endDate)
     {
