@@ -1,7 +1,7 @@
 namespace backend.Dtos;
 
 /// <summary>
-/// 会员请求参数（新增/修改共用）
+/// 会员请求参数
 /// </summary>
 public class MemberDto
 {

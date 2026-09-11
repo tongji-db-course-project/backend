@@ -8,7 +8,7 @@ namespace backend.Services;
 public interface IMemberService
 {
     /// <summary>
-    /// 分页查询会员列表
+    /// 查询会员列表
     /// </summary>
     Task<PageResult<Member>> ListMembersAsync(int page, int size, string? keyword, string? status);
 
@@ -28,7 +28,7 @@ public interface IMemberService
     Task<Member?> UpdateMemberAsync(int memberId, MemberDto dto);
 
     /// <summary>
-    /// 逻辑删除会员（改为停用）
+    /// 逻辑删除会员
     /// </summary>
     Task<bool> DeleteMemberAsync(int memberId);
 

@@ -18,7 +18,7 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>
-    /// 查询会员列表（分页 + 关键词 + 状态过滤）
+    /// 查询会员列表
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PageResult<Member>>), StatusCodes.Status200OK)]
@@ -33,7 +33,7 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>
-    /// 新增会员档案
+    /// 新增会员
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<Member>), StatusCodes.Status200OK)]
@@ -51,7 +51,7 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>
-    /// 查询会员详情
+    /// 根据ID查询会员
     /// </summary>
     [HttpGet("{memberId}")]
     [ProducesResponseType(typeof(ApiResponse<Member>), StatusCodes.Status200OK)]
@@ -90,7 +90,7 @@ public class MembersController : ControllerBase
     }
 
     /// <summary>
-    /// 逻辑删除会员（改为停用）
+    /// 逻辑删除会员
     /// </summary>
     [HttpDelete("{memberId}")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
