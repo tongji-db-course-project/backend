@@ -38,7 +38,6 @@ public class ReturnService : IReturnService
         if (!await _db.SYS_USERs.AsNoTracking().AnyAsync(x => x.USER_ID == request.operatorId))
             throw new KeyNotFoundException("经办人不存在");
 
-        // FOR UPDATE 行锁：串行化对同一销售单的并发退货创建，避免并发下累计退货量各自通过校验导致超退。
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         await _db.Database.ExecuteSqlRawAsync("SELECT * FROM SALE_ORDER WHERE SALE_ID = {0} FOR UPDATE", request.saleId);
         var sale = await _db.SALE_ORDERs.AsNoTracking().Include(x => x.SALE_ORDER_DETAILs)
@@ -76,35 +75,27 @@ public class ReturnService : IReturnService
             UPDATE_TIME = now,
             REMARK = request.remark?.Trim()
         };
-        // --- 精确退款计算：先按"本次退货金额×ratio"得到每条精确目标应退，再做尾差吸纳 ---
-        // 关键修正：originalLineAmount 使用 (单价 × 本次申请退货数量)，绝不能用原销售的 SALE_QUANTITY，
-        //           否则"退1件也按8件算退款"，既是业务bug也是资金漏洞（多退用户钱）。
-        // 例：sale=49.9×8件=399.20, 实付=379.24, ratio=0.95。退1件 → 目标=Round(49.9×1×0.95)=47.41
-        //                         全退8件 → 目标=Round(49.9×8×0.95)=379.24
+        // 精确退款计算
         var ordered = requested.OrderByDescending(kv => kv.Value).ToList();
         var lines = new List<(int productId, int qty, decimal lineTarget, SALE_ORDER_DETAIL saleLine)>();
         decimal targetTotal = 0m;
         foreach (var item in ordered)
         {
             var saleLine = sale.SALE_ORDER_DETAILs.First(x => x.PRODUCT_ID == item.Key);
-            // 只对本次申请退货的 qty 计算应退金额
             var thisReturnLineAmount = (saleLine.SALE_PRICE ?? 0m) * item.Value;
             var lineTarget = Math.Round(thisReturnLineAmount * ratio, 2, MidpointRounding.AwayFromZero);
             targetTotal += lineTarget;
             lines.Add((item.Key, item.Value, lineTarget, saleLine));
         }
-        // 尾差修正：把 targetTotal 与各行合计的差额(一般±0.0x元)全部叠加到数量最大(金额最大)的第一条明细上
-        // (由于每行已经是"先行后反推单价"，此处 targetTotal == 各lineTarget之和；这里仅为逻辑完整性保留)
+        // 尾差修正
         decimal subtotalSum = 0m;
         for (var i = 0; i < lines.Count; i++)
         {
             var (productId, qty, lineTarget, _) = lines[i];
             if (i == lines.Count - 1)
             {
-                // 最后一条：用"目标总额 - 前面已写入的所有SUBTOTAL"作为该行SUBTOTAL，彻底吸纳尾差(±几分钱)
                 var lastSubtotal = Math.Max(0m, targetTotal - subtotalSum);
                 var lastUnitPrice = Math.Round(lastSubtotal / Math.Max(1, qty), 2, MidpointRounding.AwayFromZero);
-                // 保证单价*数量 = 该行 SUBTOTAL；如果反推差了几分钱就直接落在 SUBTOTAL 字段
                 order.RETURN_ORDER_DETAILs.Add(new RETURN_ORDER_DETAIL
                 {
                     PRODUCT_ID = productId, QUANTITY = qty, REFUND_PRICE = lastUnitPrice,
@@ -183,7 +174,6 @@ public class ReturnService : IReturnService
             await _db.Database.ExecuteSqlRawAsync("SELECT * FROM MEMBER WHERE MEMBER_ID = {0} FOR UPDATE", order.MEMBER_ID.Value);
             var member = await _db.MEMBERs.FirstAsync(x => x.MEMBER_ID == order.MEMBER_ID.Value);
             var salePoints = await _db.POINT_RECORDs.AsNoTracking().Where(x => x.SALE_ID == order.SALE_ID).ToListAsync();
-            // 比例=退款对应"原销售行金额" / 销售总金额（避免部分退按金额/Paid 四舍五入，造成比例>1或不对称）
             var saleLineDict = order.SALE.SALE_ORDER_DETAILs.ToDictionary(d => d.PRODUCT_ID, d => d);
             decimal refundedSaleAmount = 0;
             foreach (var detail in order.RETURN_ORDER_DETAILs)
@@ -193,7 +183,6 @@ public class ReturnService : IReturnService
                     var origQty = sl.SALE_QUANTITY ?? 0;
                     if (origQty > 0)
                     {
-                        // 部分退：按"本次退货件数 / 原销售件数"的比例，折算原销售行的金额
                         var share = Math.Clamp((decimal)detail.QUANTITY / origQty, 0m, 1m);
                         refundedSaleAmount += (sl.SALE_PRICE ?? 0m) * origQty * share;
                     }
@@ -306,7 +295,6 @@ public class ReturnService : IReturnService
         }).ToList() : null
     });
 
-    // 单仓库模式：退货入库仓库固定为唯一启用仓库，避免因未指定仓库而将库存退回到任意一条库存记录上。
     private async Task<int> GetDefaultWarehouseIdAsync()
     {
         var warehouseIds = await _db.WAREHOUSEs.AsNoTracking()
